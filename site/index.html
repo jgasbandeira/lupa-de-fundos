@@ -143,10 +143,10 @@ footer{border-top:1px solid var(--borda);font-size:10px;color:var(--fraco);paddi
 <body>
 <header class="topo">
   <div class="wrap linha">
-    <a class="logo" href="#/compara">LUPA<b>·</b>FUNDOS</a>
+    <a class="logo" href="#/ranking">LUPA<b>·</b>FUNDOS</a>
     <nav class="nav" id="nav">
-      <a href="#/compara" data-r="compara">F1 Compara</a>
-      <a href="#/ranking" data-r="ranking">F2 Ranking</a>
+      <a href="#/ranking" data-r="ranking">F1 Ranking</a>
+      <a href="#/compara" data-r="compara">F2 Compara</a>
       <a href="#/gestores" data-r="gestores">F3 Gestores</a>
       <a href="#/administradores" data-r="administradores">F4 Administradores</a>
       <a href="#/estruturados" data-r="estruturados">F5 Estruturados</a>
@@ -340,7 +340,7 @@ function busca(el,op){
 // ================================================================ rotas
 const app=$("#app");
 let rotaAtual="";
-function rota(){const hsh=location.hash.replace(/^#\/?/,"");const i=hsh.indexOf("?");const cam=i<0?hsh:hsh.slice(0,i),qs=i<0?"":hsh.slice(i+1);const p=cam.split("/").map(decodeURIComponent);return{nome:p[0]||"compara",arg:p.slice(1).join("/"),q:new URLSearchParams(qs)};}
+function rota(){const hsh=location.hash.replace(/^#\/?/,"");const i=hsh.indexOf("?");const cam=i<0?hsh:hsh.slice(0,i),qs=i<0?"":hsh.slice(i+1);const p=cam.split("/").map(decodeURIComponent);return{nome:p[0]||"ranking",arg:p.slice(1).join("/"),q:new URLSearchParams(qs)};}
 function ir(x){if(location.hash!==x)location.hash=x;else render();}
 async function render(){
   const r=rota();const mudouTela=r.nome!==rotaAtual;rotaAtual=r.nome;
@@ -357,11 +357,11 @@ async function render(){
 }
 window.addEventListener("hashchange",render);
 document.addEventListener("keydown",e=>{
-  const mapa={F1:"#/compara",F2:"#/ranking",F3:"#/gestores",F4:"#/administradores",F5:"#/estruturados"};
+  const mapa={F1:"#/ranking",F2:"#/compara",F3:"#/gestores",F4:"#/administradores",F5:"#/estruturados"};
   if(mapa[e.key]){e.preventDefault();ir(mapa[e.key]);}
 });
 
-// ================================================================ F1 COMPARA
+// ================================================================ F2 COMPARA
 const CORES=["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)","var(--s6)","var(--s7)","var(--s8)"];
 const MAXF=8;
 function estadoCompara(q){
@@ -394,7 +394,7 @@ async function telaCompara(r){
   $("#cmp-de").value=st.de;$("#cmp-ate").value=st.ate;
   $("#cmp-de").onchange=e=>{st.de=e.target.value;irCompara(st);};$("#cmp-ate").onchange=e=>{st.ate=e.target.value;irCompara(st);};
   const res=$("#cmp-res");
-  if(!st.f.length){res.innerHTML='<section class="painel"><div class="cab">Início</div><div class="corpo"><div>Busque um fundo por nome ou CNPJ para começar. Até 8 lado a lado.<br><span class="fraco">Setas ↑↓ navegam a lista, Enter seleciona. F1 a F5 trocam de tela. No ranking (F2) dá para marcar vários fundos e mandar para cá.</span></div></div></section>';$("#cmp-range").textContent="";return;}
+  if(!st.f.length){res.innerHTML='<section class="painel"><div class="cab">Início</div><div class="corpo"><div>Busque um fundo por nome ou CNPJ para começar. Até 8 lado a lado.<br><span class="fraco">Setas ↑↓ navegam a lista, Enter seleciona. F1 a F5 trocam de tela. No ranking (F1) dá para marcar vários fundos e mandar para cá.</span></div></div></section>';$("#cmp-range").textContent="";return;}
   res.innerHTML='<div class="carregando">Carregando séries…</div>';
   const fs=await Promise.all(st.f.map(id=>ficha(id).catch(()=>null)));
   const fim=st.ate||m.ultima_cota;let ini=st.de||inicioJanela(fim,st.j);
@@ -452,7 +452,7 @@ async function telaCompara(r){
 function plMedio(f,ini,fim){if(!f.sem)return null;let s=0,n=0;f.sem.d.forEach((x,i)=>{if((!ini||x>=ini)&&x<=fim&&f.sem.p[i]>0){s+=f.sem.p[i];n++;}});return n?s/n:null;}
 function prazo(f){if(f.conversao==null&&f.pagamento==null)return"—";return"D+"+(f.conversao??"?")+" cotização · D+"+(f.pagamento??"?")+" pagamento";}
 
-// ================================================================ F2 RANKING (tabela reutilizada por F3/F4/F5)
+// ================================================================ F1 RANKING (tabela reutilizada por F3/F4/F5)
 const UNIVERSOS=[["todos","Todos",0],["varejo","Varejo",1],["aberto","Aberto",2],["exclusivo","Exclusivo",4]];
 const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["situacao","Situação","l"],["ret12","Ret 12M"],["vol12","Vol"],["sharpe12","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["gestor","Gestor","l"],["inicio","Início"]];
 function filtrosPadrao(){return{q:"",u:"todos",classe:"",sit:"",serie:"todas",plmin:"",taxamax:"",ord:"pl",dir:-1};}
@@ -573,7 +573,7 @@ async function telaEstruturados(){
 async function telaFundo(r){
   const id=r.arg,q=r.q;
   const [f]=await Promise.all([ficha(id).catch(()=>null),meta(),benchs()]);
-  if(!f){app.innerHTML='<section class="painel aviso"><div class="cab">Fundo não encontrado</div><div class="corpo">Não há dados para "'+h(id)+'". Use a busca em F1 ou o ranking em F2.</div></section>';return;}
+  if(!f){app.innerHTML='<section class="painel aviso"><div class="cab">Fundo não encontrado</div><div class="corpo">Não há dados para "'+h(id)+'". Use o ranking em F1 ou a busca em F2.</div></section>';return;}
   const aba=q.get("aba")||"desempenho",jan=q.get("j")||"12m",de=q.get("de")||"",ate=q.get("ate")||"";
   const link=o=>{const p=new URLSearchParams({aba,j:jan});if(de)p.set("de",de);if(ate)p.set("ate",ate);for(const k in o){if(o[k]==="")p.delete(k);else p.set(k,o[k]);}return"#/fundo/"+encodeURIComponent(id)+"?"+p.toString();};
   const k=(rot,val)=>'<div><div class="k">'+rot+'</div><div class="v">'+val+'</div></div>';

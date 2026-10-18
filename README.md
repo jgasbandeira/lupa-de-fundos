@@ -2,8 +2,8 @@
 
 Terminal de fundos de investimento brasileiros com dados públicos da CVM:
 
-- **F1 Compara**: até 8 fundos lado a lado, janelas de 1M a MAX ou datas livres, mais de 30 indicadores (Sharpe, Sortino, VaR, beta, alfa de Jensen…) e matriz de correlação.
-- **F2 Ranking**: todos os fundos com filtros por universo, classe, situação, série, PL e taxa; colunas ordenáveis; seleção vai para a comparação.
+- **F1 Ranking** (tela inicial): todos os fundos com filtros por universo, classe, situação, série, PL e taxa; colunas ordenáveis; seleção vai para a comparação.
+- **F2 Compara**: até 8 fundos lado a lado, janelas de 1M a MAX ou datas livres, mais de 30 indicadores (Sharpe, Sortino, VaR, beta, alfa de Jensen…) e matriz de correlação.
 - **F3 Gestores / F4 Administradores**: número de fundos e PL total; ao escolher um, a lista dos fundos dele.
 - **F5 Estruturados**: FII, FIDC, FIP, Fiagro e afins, com PL, cotistas e rentabilidade mensal (informes mensais da CVM).
 - **Ficha do fundo**: desempenho, PL e cotistas, retorno mês a mês contra o CDI, carteira (últimas 12 competências da CDA) e cadastro completo.
