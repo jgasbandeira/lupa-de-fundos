@@ -240,7 +240,8 @@ async function comparar(ids,periodo,bench){
     if(b==="CDI"&&cdiIdx){const w=recorta(cdiIdx.datas,cdiIdx.fat,ini,fim);datas=w.datas;v=w.v;}
     if(b==="IBOV"&&ind.ibov){const e=expandir(ind.ibov),w=recorta(e.datas,e.v,ini,fim);datas=w.datas;v=w.v;}
     if(datas.length<2)continue;
-    series.push({id:b,tipo:"benchmark",nome:b==="CDI"?"CDI":"Ibovespa",datas,valores:v.map(x=>x/v[0]),metricas:metricas(datas,v)});
+    const m=metricas(datas,v);if(m&&b==="CDI"){m.meses_acima_cdi=null;m.sharpe=null;}
+    series.push({id:b,tipo:"benchmark",nome:b==="CDI"?"CDI":"Ibovespa",datas,valores:v.map(x=>x/v[0]),metricas:m});
   }
   return{inicio:ini||(series[0]&&series[0].datas[0]),fim,series};
 }
