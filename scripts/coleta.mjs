@@ -280,6 +280,54 @@ async function cdi() {
   return { d: ds, v: ds.map((d) => pts.get(d)) };
 }
 
+// Reserva: Ipeadata. Selic over diária (% a.a., GM366_TJOVER366), que na prática acompanha o CDI,
+// calibrada mês a mês para bater com o CDI mensal oficial (% a.m., BM12_TJCDI12).
+async function ipea(codigo) {
+  let ultimo;
+  for (const base of ["https://www.ipeadata.gov.br", "http://www.ipeadata.gov.br"]) {
+    try { return (await json(`${base}/api/odata4/ValoresSerie(SERCODIGO='${codigo}')`, 2)).value || []; }
+    catch (e) { ultimo = e; }
+  }
+  throw ultimo;
+}
+async function cdiIpea() {
+  const selic = await ipea("GM366_TJOVER366");
+  const pts = [];
+  for (const x of selic) {
+    if (x.VALVALOR == null) continue;
+    const d = dia(x.VALDATA.slice(0, 10));
+    if (d < DIA_INI - 10) continue;
+    const dt = new Date(d * DIA_MS).getUTCDay();
+    if (dt === 0 || dt === 6) continue;
+    pts.push([d, (Math.pow(1 + x.VALVALOR / 100, 1 / 252) - 1) * 100]);
+  }
+  pts.sort((a, b) => a[0] - b[0]);
+  if (pts.length < 20) throw new Error("Selic do Ipeadata veio vazia");
+  let calibrados = 0;
+  try {
+    const mensal = new Map((await ipea("BM12_TJCDI12")).filter((x) => x.VALVALOR != null).map((x) => [x.VALDATA.slice(0, 7), x.VALVALOR]));
+    const mesAtual = iso(pts[pts.length - 1][0]).slice(0, 7);
+    const porMes = new Map();
+    for (const p of pts) { const m = iso(p[0]).slice(0, 7); if (!porMes.has(m)) porMes.set(m, []); porMes.get(m).push(p); }
+    for (const [m, lista] of porMes) {
+      if (m >= mesAtual || !mensal.has(m)) continue; // só meses fechados
+      const alvo = 1 + mensal.get(m) / 100;
+      const atual = lista.reduce((a, p) => a * (1 + p[1] / 100), 1);
+      const ajuste = Math.pow(alvo / atual, 1 / lista.length);
+      if (Math.abs(ajuste - 1) > 0.0005) continue; // diferença grande demais: dado suspeito, não mexe
+      for (const p of lista) p[1] = ((1 + p[1] / 100) * ajuste - 1) * 100;
+      calibrados++;
+    }
+  } catch (e) { aviso(`CDI mensal do Ipeadata indisponível (${e.message}); usando só a Selic over`); }
+  log(`cdi (Ipeadata): ${pts.length} dias, ${calibrados} meses calibrados com o CDI oficial`);
+  return { d: pts.map((p) => p[0]), v: pts.map((p) => p[1]), fonte: "Ipeadata: Selic over diária calibrada pelo CDI mensal" };
+}
+
+async function cdiComReserva() {
+  try { const r = await cdi(); r.fonte = "Banco Central (SGS 12)"; return r; }
+  catch (e) { log(`CDI no Banco Central falhou (${e.message.slice(0, 80)}); tentando Ipeadata`); return cdiIpea(); }
+}
+
 async function ibov() {
   const p1 = (DIA_INI - 10) * 86400, p2 = Math.floor(Date.now() / 1000);
   const j = await json(`${YAHOO}/v8/finance/chart/%5EBVSP?period1=${p1}&period2=${p2}&interval=1d`);
@@ -338,8 +386,13 @@ async function main() {
   // Índices (com reserva no site já publicado)
   const prev = await anterior("indices.json");
   const indices = { atualizado: new Date().toISOString() };
-  for (const [nome, fn] of [["cdi", cdi], ["ibov", ibov]]) {
-    try { indices[nome] = compacta(...Object.values(await fn()), 10); log(`${nome}: ${indices[nome].q.length} pontos`); }
+  for (const [nome, fn] of [["cdi", cdiComReserva], ["ibov", ibov]]) {
+    try {
+      const r = await fn();
+      indices[nome] = compacta(r.d, r.v, 10);
+      indices[nome].fonte = r.fonte || (nome === "ibov" ? "Yahoo Finance (^BVSP)" : null);
+      log(`${nome}: ${indices[nome].q.length} pontos`);
+    }
     catch (e) {
       if (prev?.[nome]) { indices[nome] = prev[nome]; aviso(`${nome}: ${e.message}. Usando a série publicada anteriormente.`); }
       else aviso(`${nome}: ${e.message}. Sem série.`);
@@ -376,7 +429,8 @@ async function main() {
   lista.sort((a, b) => (b[4] || 0) - (a[4] || 0));
   fs.writeFileSync(path.join(SAIDA, "fundos.json"), JSON.stringify({ campos: ["id", "nome", "classe", "gestor", "pl", "cotistas", "subclasse"], fundos: lista }));
   fs.writeFileSync(path.join(SAIDA, "indices.json"), JSON.stringify(indices));
-  const meta = { atualizado: new Date().toISOString(), ultima_cota: iso(ultimoDia), fundos: lista.length, inicio: iso(DIA_INI), avisos };
+  const meta = { atualizado: new Date().toISOString(), ultima_cota: iso(ultimoDia), fundos: lista.length, inicio: iso(DIA_INI),
+    fontes: { cdi: indices.cdi?.fonte || null, ibov: indices.ibov?.fonte || null }, avisos };
   fs.writeFileSync(path.join(SAIDA, "meta.json"), JSON.stringify(meta, null, 1));
   log(`saída: ${lista.length} fundos, ${(bytes / 1e6).toFixed(0)} MB de séries, última cota ${meta.ultima_cota}`);
   if (avisos.length) log(`${avisos.length} aviso(s)`);

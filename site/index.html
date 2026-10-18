@@ -144,7 +144,8 @@ footer{font-size:13px;color:var(--muted);max-width:75ch;display:grid;gap:6px}
   </section>
 
   <footer>
-    <p>Fontes: informe diário e cadastro de fundos da CVM (dados.cvm.gov.br), CDI pela série 12 do SGS do Banco Central e Ibovespa. Rentabilidade passada não garante resultados futuros. Esta página não é recomendação de investimento.</p>
+    <p id="fontes">Fontes: informe diário e cadastro de fundos da CVM (dados.cvm.gov.br), CDI e Ibovespa.</p>
+    <p>Rentabilidade passada não garante resultados futuros. Esta página não é recomendação de investimento.</p>
   </footer>
 </div>
 
@@ -430,7 +431,12 @@ function renderTable(){
 }
 
 // ---------- início ----------
-obterMeta().then(d=>{if(d.ultima_cota)$("base").textContent="Dados até "+fdate(d.ultima_cota)+" · "+intf(d.fundos)+" fundos";}).catch(()=>{});
+obterMeta().then(d=>{if(d.ultima_cota)$("base").textContent="Dados até "+fdate(d.ultima_cota)+" · "+intf(d.fundos)+" fundos";
+  const f=d.fontes||{};$("fontes").textContent="Fontes: informe diário e cadastro de fundos da CVM (dados.cvm.gov.br); CDI: "+(f.cdi||"indisponível")+"; Ibovespa: "+(f.ibov||"indisponível")+". Atualizado em "+new Date(d.atualizado).toLocaleString("pt-BR")+".";}).catch(()=>{});
+if(!state.sel.length&&!new URLSearchParams(location.search).has("f")&&!localStorage.getItem("lupa-visitou")){
+  try{localStorage.setItem("lupa-visitou","1");}catch(e){}
+  indiceFundos().then(idx=>{if(state.sel.length)return;const ex=idx.filter(f=>(f.cotistas||0)>=1000).slice(0,3);ex.forEach(f=>{state.sel.push(f.id);state.nomes[f.id]=titleCase(f.nome);});if(ex.length)carregar();}).catch(()=>{});
+}
 let rt;window.addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(drawChart,120);});
 carregar();
 })();
