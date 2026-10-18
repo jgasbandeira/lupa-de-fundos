@@ -221,7 +221,11 @@ async function* dicts(origem, membro) {
 const pick = (o, ...ks) => { for (const k of ks) { const v = o[k]; if (v) return v; } return null; };
 const junta = (cnpj, obj) => {
   const d = cad.get(cnpj) || {};
-  for (const [k, v] of Object.entries(obj)) if (v != null && v !== "") d[k] = v;
+  for (const [k, v] of Object.entries(obj)) {
+    if (v == null || v === "") continue;
+    if (k === "inicio" && d.inicio && d.inicio <= v) continue; // fica a data mais antiga
+    d[k] = v;
+  }
   cad.set(cnpj, d);
 };
 

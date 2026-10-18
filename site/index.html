@@ -244,15 +244,16 @@ function metricas(datas,q,usaCdi){
 
 async function comparar(ids,periodo,bench){
   const [meta,ind]=await Promise.all([obterMeta(),indices()]);
-  const fim=meta.ultima_cota,ini=inicioPeriodo(fim,periodo);
+  const fim=meta.ultima_cota;let ini=inicioPeriodo(fim,periodo);
   const series=[];
   const fs=await Promise.all(ids.map(id=>getJson("f/"+id+".json.gz").catch(e=>({id,erro:e.message}))));
+  if(periodo==="max"){const prim=fs.filter(f=>!f.erro&&f.serie).map(f=>isoDia(f.serie.d0));if(prim.length)ini=prim.sort().pop();}
   for(const f of fs){
     if(f.erro){series.push({id:f.id,erro:f.erro});continue;}
     const e=f.serie.dl?expandirLog(f.serie):expandir(f.serie),w=recorta(e.datas,e.v,ini,fim);
     series.push({id:f.id,tipo:"fundo",nome:f.nome,obs:w.datas.length<2?"Sem cotas no período. Última cota em "+fdate(f.ultima)+".":"",datas:w.datas,valores:w.v.map(x=>x/w.v[0]),metricas:metricas(w.datas,w.v),
       info:{classe:f.classe,classe_anbima:f.anbima,gestor:f.gestor,administrador:f.admin,pl:f.pl,cotistas:f.cotistas,taxa_adm:f.taxa_adm,
-        taxa_perf:f.taxa_perf,publico_alvo:f.publico,data_inicio:f.inicio,data_ultima_cota:f.ultima,cnpj_formatado:fmtCnpj(f.cnpj)+(f.sub?" · "+f.sub:"")}});
+        taxa_perf:f.taxa_perf,publico_alvo:f.publico,data_inicio:f.inicio,primeira:f.primeira,data_ultima_cota:f.ultima,cnpj_formatado:fmtCnpj(f.cnpj)+(f.sub?" · "+f.sub:"")}});
   }
   for(const b of bench){
     let datas=[],v=[];
@@ -442,7 +443,7 @@ function renderTable(){
   ];
   const info=[["Classe CVM","classe"],["Classificação ANBIMA","classe_anbima"],["Gestor","gestor",titleCase],["Administrador","administrador",titleCase],
     ["Patrimônio líquido","pl",money],["Cotistas","cotistas",intf],["Taxa de administração","taxa_adm"],["Taxa de performance","taxa_perf"],
-    ["Público-alvo","publico_alvo"],["Início das atividades","data_inicio",fdate],["Última cota","data_ultima_cota",fdate],["CNPJ","cnpj_formatado"]];
+    ["Público-alvo","publico_alvo"],["Início das atividades","data_inicio",fdate],["Primeira cota na CVM","primeira",fdate],["Última cota","data_ultima_cota",fdate],["CNPJ","cnpj_formatado"]];
   let h='<thead><tr><th></th>'+ss.map(s=>'<th class="'+(s.tipo==="benchmark"?"bm":"")+'"><span class="sw" style="background:'+s.color+'"></span>'+esc(short(s.nome,44))+(s.obs?'<span class="obs">'+esc(s.obs)+'</span>':'')+'</th>').join("")+'</tr></thead><tbody>';
   rows.forEach(r=>{
     if(r[0]==="sep"){h+='<tr class="sep"><td colspan="'+(ss.length+1)+'">'+r[1]+'</td></tr>';return;}
