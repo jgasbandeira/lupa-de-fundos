@@ -14,6 +14,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write
 
 concurrency:
   group: pages
@@ -59,3 +60,9 @@ jobs:
     steps:
       - id: deploy
         uses: actions/deploy-pages@v4
+
+      # O GitHub desliga agendamentos de repositórios sem commits há 60 dias. Reativar a cada execução evita isso.
+      - name: Manter o agendamento ativo
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT repos/${{ github.repository }}/actions/workflows/atualizar.yml/enable
