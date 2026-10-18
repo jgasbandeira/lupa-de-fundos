@@ -1,0 +1,61 @@
+name: Atualizar dados e publicar site
+
+on:
+  schedule:
+    # 07:30 e 20:30 em Brasília (UTC-3), todos os dias
+    - cron: "30 10 * * *"
+    - cron: "30 23 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["site/**", "scripts/**", ".github/workflows/**"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Guarda os arquivos da CVM entre execuções para não baixar 5 anos todo dia
+      - name: Cache dos arquivos da CVM
+        uses: actions/cache@v4
+        with:
+          path: cache/inf
+          key: cvm-${{ github.run_id }}
+          restore-keys: cvm-
+
+      - name: Coletar dados
+        env:
+          ANOS: "5"
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: node scripts/coleta.mjs
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  publicar:
+    needs: coletar
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
