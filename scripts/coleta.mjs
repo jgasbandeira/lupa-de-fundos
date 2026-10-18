@@ -62,10 +62,19 @@ async function baixar(url, destino, { forcar = false } = {}) {
   }
 }
 
-async function json(url) {
-  const r = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
-  if (!r.ok) throw new Error(`HTTP ${r.status} em ${url}`);
-  return r.json();
+// Alguns servidores (o do Banco Central, por exemplo) recusam clientes que não parecem navegador.
+const UA_NAVEGADOR = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+async function json(url, tentativas = 3) {
+  let ultimo;
+  for (let t = 1; t <= tentativas; t++) {
+    try {
+      const r = await fetch(url, { headers: { "User-Agent": UA_NAVEGADOR, Accept: "application/json, text/plain, */*", "Accept-Language": "pt-BR,pt;q=0.9" } });
+      const txt = await r.text();
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${txt.replace(/\s+/g, " ").slice(0, 160)}`);
+      try { return JSON.parse(txt); } catch { throw new Error(`resposta não é JSON: ${txt.replace(/\s+/g, " ").slice(0, 160)}`); }
+    } catch (e) { ultimo = e; await new Promise((s) => setTimeout(s, 4000 * t)); }
+  }
+  throw ultimo;
 }
 
 // ------------------------------------------------------------------ csv
@@ -261,7 +270,7 @@ async function cdi() {
   const fim = dia(hoje.toISOString());
   const br = (d) => iso(d).split("-").reverse().join("/");
   while (ini <= fim) {
-    const ate = Math.min(fim, ini + 3600);
+    const ate = Math.min(fim, ini + 364); // consultas de até 1 ano
     const lista = await json(`${BCB}/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial=${br(ini)}&dataFinal=${br(ate)}`);
     for (const x of lista) { const [d, m, a] = x.data.split("/"); pts.set(dia(`${a}-${m}-${d}`), +x.valor); }
     ini = ate + 1;
