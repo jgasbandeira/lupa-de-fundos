@@ -453,7 +453,7 @@ function plMedio(f,ini,fim){if(!f.sem)return null;let s=0,n=0;f.sem.d.forEach((x
 function prazo(f){if(f.conversao==null&&f.pagamento==null)return"—";return"D+"+(f.conversao??"?")+" cotização · D+"+(f.pagamento??"?")+" pagamento";}
 
 // ================================================================ F1 RANKING (tabela reutilizada por F3/F4/F5)
-const UNIVERSOS=[["todos","Todos",0],["varejo","Varejo",1],["aberto","Aberto",2],["exclusivo","Exclusivo",4]];
+const UNIVERSOS=[["todos","Todos",0],["aberto","Aberto",2],["exclusivo","Exclusivo",4]];
 const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["situacao","Situação","l"],["ret12","Ret 12M"],["vol12","Vol"],["sharpe12","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["gestor","Gestor","l"],["inicio","Início"]];
 function filtrosPadrao(){return{q:"",u:"todos",classe:"",sit:"",serie:"todas",plmin:"",taxamax:"",ord:"pl",dir:-1};}
 function aplicaFiltros(lista,F,fixo){
@@ -474,7 +474,7 @@ function aplicaFiltros(lista,F,fixo){
 function ordena(lista,F){const k=F.ord,d=F.dir;return lista.slice().sort((a,b)=>{const x=a[k],y=b[k];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*d;});}
 
 function montarRanking(el,op){
-  const F=op.F;const sel=new Set();let mostrar=200;
+  const F=op.F;if(!UNIVERSOS.some(u=>u[0]===F.u))F.u="todos";const sel=new Set();let mostrar=200;
   const base=op.fixo?op.lista.filter(op.fixo):op.lista;
   const classes=[...new Set(base.map(f=>f.classe||f.tipo).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
   const sitCont=new Map();base.forEach(f=>{if(f.situacao)sitCont.set(f.situacao,(sitCont.get(f.situacao)||0)+1);});
