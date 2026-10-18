@@ -43,7 +43,7 @@ h1 span{color:var(--accent)}
 .chip b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .chip button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;border-radius:50%}
 .chip button:hover{background:var(--line);color:var(--fg)}
-.search{position:relative;flex:1 1 320px;max-width:560px;min-width:0}
+.search{position:relative;flex:1 1 300px;max-width:620px;min-width:0}
 .chip{min-width:0}
 .search input{width:100%;font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
 .results{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 4px);background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.14);max-height:360px;overflow:auto}
@@ -53,6 +53,8 @@ h1 span{color:var(--accent)}
 .results .n{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .results .m{grid-column:1;font-size:12.5px;color:var(--muted);font-family:var(--f-mono)}
 .results .p{grid-row:1/3;grid-column:2;align-self:center;font-family:var(--f-mono);font-size:12.5px;color:var(--muted)}
+.results .tag{display:inline-block;font-family:var(--f-body);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--neg);border:1px solid currentColor;border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
+.results .g{color:var(--fg)}
 .results .vazio{padding:12px;color:var(--muted);font-size:14px}
 .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{font:inherit;font-size:14px;border:0;background:transparent;color:var(--muted);padding:6px 11px;cursor:pointer;border-right:1px solid var(--line)}
@@ -79,6 +81,7 @@ th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:right;whit
 th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);z-index:1}
 thead th{font-size:13px;font-weight:600;vertical-align:bottom;white-space:normal;min-width:120px;max-width:200px}
 thead th .sw{display:block;height:3px;border-radius:2px;margin-bottom:6px}
+thead th .obs{display:block;font-weight:400;font-size:12px;color:var(--neg);margin-top:4px}
 thead th.bm{color:var(--muted);font-weight:400}
 td{font-family:var(--f-mono);font-size:13.5px}
 td.txt{font-family:var(--f-body);white-space:normal;max-width:220px}
@@ -109,12 +112,18 @@ footer{font-size:13px;color:var(--muted);max-width:75ch;display:grid;gap:6px}
   <section class="panel controls" aria-label="Seleção de fundos">
     <div class="row" id="chips"></div>
     <div class="row">
+      <div class="seg" id="campo" role="group" aria-label="Buscar por">
+        <button type="button" data-c="nome" aria-pressed="true">Nome</button>
+        <button type="button" data-c="cnpj" aria-pressed="false">CNPJ</button>
+        <button type="button" data-c="gestor" aria-pressed="false">Gestor</button>
+      </div>
       <div class="search">
-        <input type="search" id="busca" placeholder="Busque por nome, gestora ou CNPJ" autocomplete="off" aria-label="Buscar fundo" aria-controls="resultados">
+        <input type="search" id="busca" placeholder="Nome do fundo" autocomplete="off" aria-label="Buscar fundo" aria-controls="resultados">
         <div class="results" id="resultados" hidden></div>
       </div>
       <button type="button" class="link" id="copiar">Copiar link da comparação</button>
     </div>
+    <label class="tog" style="margin-top:-6px"><input type="checkbox" id="encerrados"> Incluir fundos encerrados na busca</label>
     <div class="row" style="justify-content:space-between">
       <div class="row"><span class="label">Período</span><div class="seg" id="period"></div></div>
       <div class="row">
@@ -156,25 +165,35 @@ const DADOS="dados/";
 
 // ---------- dados estáticos (gerados todo dia pelo GitHub Actions) ----------
 const cacheJson=new Map();
+async function lerResposta(r,nome){
+  if(!r.ok)throw new Error(r.status===404?"NAO_ENCONTRADO":"Falha ao carregar dados ("+r.status+")");
+  if(!nome.endsWith(".gz"))return r.json();
+  const buf=new Uint8Array(await r.arrayBuffer());
+  // Se o servidor já descompactou (Content-Encoding), o arquivo não começa com a assinatura do gzip
+  if(buf[0]!==0x1f||buf[1]!==0x8b)return JSON.parse(new TextDecoder().decode(buf));
+  const txt=await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+  return JSON.parse(txt);
+}
 function getJson(nome){
-  if(!cacheJson.has(nome))cacheJson.set(nome,fetch(DADOS+nome,{cache:"no-cache"}).then(r=>{if(!r.ok)throw new Error(r.status===404?"NAO_ENCONTRADO":"Falha ao carregar dados ("+r.status+")");return r.json();}).catch(e=>{cacheJson.delete(nome);throw e;}));
+  if(!cacheJson.has(nome))cacheJson.set(nome,fetch(DADOS+nome,{cache:"no-cache"}).then(r=>lerResposta(r,nome)).catch(e=>{cacheJson.delete(nome);throw e;}));
   return cacheJson.get(nome);
 }
 const obterMeta=()=>getJson("meta.json");
 const DIA=864e5,isoDia=d=>new Date(d*DIA).toISOString().slice(0,10);
+function expandirLog(s){const n=s.dl.length+1,d=new Array(n),v=new Array(n);let x=s.d0,L=s.l0;d[0]=isoDia(x);v[0]=Math.exp(L/1e7);for(let i=1;i<n;i++){x+=s.dd[i-1];L+=s.dl[i-1];d[i]=isoDia(x);v[i]=Math.exp(L/1e7);}return{datas:d,v};}
 function expandir(s){const d=new Array(s.q.length);let x=s.d0;d[0]=isoDia(x);for(let i=1;i<d.length;i++){x+=s.dd[i-1];d[i]=isoDia(x);}return{datas:d,v:s.q};}
 function norm(t){return(t||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();}
 let idxPromise=null;
 function indiceFundos(){
-  if(!idxPromise)idxPromise=getJson("fundos.json").then(j=>j.fundos.map(r=>({id:r[0],nome:r[1],classe:r[2],gestor:r[3],pl:r[4],cotistas:r[5],cnpj:r[0].slice(0,14),busca:norm(r[1]+" "+(r[3]||"")+" "+r[0])}))).catch(e=>{idxPromise=null;throw e;});
+  if(!idxPromise)idxPromise=getJson("fundos.json.gz").then(j=>j.fundos.map(r=>({id:r[0],nome:r[1],classe:r[2],gestor:r[3],pl:r[4],cotistas:r[5],ativo:r[6]===1,ano:r[7],ultima:r[8],cnpj:r[0].slice(0,14),
+    bnome:norm(r[1]),bgestor:norm(r[3])}))).catch(e=>{idxPromise=null;throw e;});
   return idxPromise;
 }
 function fmtCnpj(c){return c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,"$1.$2.$3/$4-$5");}
-function procurar(idx,q,lim){
-  const limpo=q.replace(/[.\-\/\s]/g,"");
-  let r;
-  if(/^\d{4,}$/.test(limpo))r=idx.filter(f=>f.cnpj.startsWith(limpo));
-  else{const toks=norm(q).split(/\s+/).filter(Boolean);r=toks.length?idx.filter(f=>toks.every(t=>f.busca.includes(t))):idx;}
+function procurar(idx,q,campo,encerrados,lim){
+  let r=encerrados?idx:idx.filter(f=>f.ativo);
+  if(campo==="cnpj"){const dig=q.replace(/\D/g,"");r=dig?r.filter(f=>f.cnpj.startsWith(dig)):r;}
+  else{const toks=norm(q).split(/\s+/).filter(Boolean),k=campo==="gestor"?"bgestor":"bnome";if(toks.length)r=r.filter(f=>toks.every(t=>f[k].includes(t)));}
   return r.slice(0,lim).map(f=>({...f,cnpj_formatado:fmtCnpj(f.cnpj),subclasse:f.id.includes(".")?f.id.split(".")[1]:""}));
 }
 
@@ -197,7 +216,7 @@ function retCDI(a,b){const x=fatorCDI(a),y=fatorCDI(b);return x&&y?y/x-1:null;}
 function inicioPeriodo(fim,p){
   if(p==="max")return null;
   if(p==="ytd")return fim.slice(0,4)+"-01-01";
-  const m={"6m":6,"12m":12,"24m":24,"36m":36,"60m":60}[p];
+  const m={"6m":6,"12m":12,"24m":24,"36m":36,"60m":60,"120m":120}[p];
   const f=new Date(fim+"T00:00:00Z");let a=f.getUTCFullYear(),mm=f.getUTCMonth()-m;
   while(mm<0){a--;mm+=12;}
   const ult=new Date(Date.UTC(a,mm+1,0)).getUTCDate();
@@ -227,11 +246,11 @@ async function comparar(ids,periodo,bench){
   const [meta,ind]=await Promise.all([obterMeta(),indices()]);
   const fim=meta.ultima_cota,ini=inicioPeriodo(fim,periodo);
   const series=[];
-  const fs=await Promise.all(ids.map(id=>getJson("f/"+id+".json").catch(e=>({id,erro:e.message}))));
+  const fs=await Promise.all(ids.map(id=>getJson("f/"+id+".json.gz").catch(e=>({id,erro:e.message}))));
   for(const f of fs){
     if(f.erro){series.push({id:f.id,erro:f.erro});continue;}
-    const e=expandir(f.serie),w=recorta(e.datas,e.v,ini,fim);
-    series.push({id:f.id,tipo:"fundo",nome:f.nome,datas:w.datas,valores:w.v.map(x=>x/w.v[0]),metricas:metricas(w.datas,w.v),
+    const e=f.serie.dl?expandirLog(f.serie):expandir(f.serie),w=recorta(e.datas,e.v,ini,fim);
+    series.push({id:f.id,tipo:"fundo",nome:f.nome,obs:w.datas.length<2?"Sem cotas no período. Última cota em "+fdate(f.ultima)+".":"",datas:w.datas,valores:w.v.map(x=>x/w.v[0]),metricas:metricas(w.datas,w.v),
       info:{classe:f.classe,classe_anbima:f.anbima,gestor:f.gestor,administrador:f.admin,pl:f.pl,cotistas:f.cotistas,taxa_adm:f.taxa_adm,
         taxa_perf:f.taxa_perf,publico_alvo:f.publico,data_inicio:f.inicio,data_ultima_cota:f.ultima,cnpj_formatado:fmtCnpj(f.cnpj)+(f.sub?" · "+f.sub:"")}});
   }
@@ -247,18 +266,18 @@ async function comparar(ids,periodo,bench){
 }
 const COLORS=["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)"];
 const BCOLOR={CDI:"var(--cdi)",IBOV:"var(--ibov)"};
-const PERIODS=[["6m","6M"],["12m","12M"],["24m","24M"],["36m","36M"],["60m","60M"],["ytd","No ano"],["max","Máx."]];
+const PERIODS=[["6m","6M"],["12m","12M"],["24m","24M"],["36m","3A"],["60m","5A"],["120m","10A"],["ytd","No ano"],["max","Máx."]];
 const $=id=>document.getElementById(id);
 
 // ---------- estado (URL > localStorage > padrão) ----------
-const state={sel:[],nomes:{},period:"12m",mode:"ret",bench:{CDI:true,IBOV:false}};
-try{const s=JSON.parse(localStorage.getItem("lupa")||"null");if(s)Object.assign(state,{sel:s.sel||[],nomes:s.nomes||{},period:s.period||"12m",bench:s.bench||state.bench});}catch(e){}
+const state={sel:[],nomes:{},period:"12m",mode:"ret",bench:{CDI:true,IBOV:false},campo:"nome",encerrados:false};
+try{const s=JSON.parse(localStorage.getItem("lupa")||"null");if(s)Object.assign(state,{sel:s.sel||[],nomes:s.nomes||{},period:s.period||"12m",bench:s.bench||state.bench,campo:s.campo||"nome",encerrados:!!s.encerrados});}catch(e){}
 {const u=new URLSearchParams(location.search);
  if(u.get("f"))state.sel=u.get("f").split(",").filter(Boolean).slice(0,5);
  if(u.get("p")&&PERIODS.some(p=>p[0]===u.get("p")))state.period=u.get("p");
  if(u.get("b")!==null){const b=u.get("b").split(",");state.bench={CDI:b.includes("CDI"),IBOV:b.includes("IBOV")};}}
 function persist(){
-  try{localStorage.setItem("lupa",JSON.stringify({sel:state.sel,nomes:state.nomes,period:state.period,bench:state.bench}));}catch(e){}
+  try{localStorage.setItem("lupa",JSON.stringify({sel:state.sel,nomes:state.nomes,period:state.period,bench:state.bench,campo:state.campo,encerrados:state.encerrados}));}catch(e){}
   const u=new URLSearchParams();if(state.sel.length)u.set("f",state.sel.join(","));u.set("p",state.period);
   u.set("b",Object.keys(state.bench).filter(k=>state.bench[k]).join(","));
   history.replaceState(null,"","?"+u.toString());
@@ -284,9 +303,10 @@ async function buscar(){
   try{
     const idx=await indiceFundos();
     if(seq!==buscaSeq)return;
-    lista=procurar(idx,q,12).filter(f=>!state.sel.includes(f.id));foco=-1;
-    res.innerHTML=lista.length?lista.map((f,i)=>'<button type="button" data-i="'+i+'"><span class="n">'+esc(titleCase(f.nome))+'</span><span class="m">'+esc(f.cnpj_formatado)+(f.subclasse?" · "+esc(f.subclasse):"")+" · "+esc(f.classe||"—")+'</span><span class="p">'+money(f.pl)+'</span></button>').join("")
-      :'<div class="vazio">'+(q?"Nenhum fundo ativo encontrado para “"+esc(q)+"”.":"Digite para buscar.")+'</div>';
+    lista=procurar(idx,q,state.campo,state.encerrados,state.campo==="gestor"?40:15).filter(f=>!state.sel.includes(f.id));foco=-1;
+    const MESES=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+    res.innerHTML=lista.length?lista.map((f,i)=>'<button type="button" data-i="'+i+'"><span class="n">'+esc(titleCase(f.nome))+(f.ativo?"":'<span class="tag">encerrado '+(f.ultima?MESES[+f.ultima.slice(5,7)-1]+"/"+f.ultima.slice(0,4):"")+'</span>')+'</span><span class="m">'+esc(f.cnpj_formatado)+(f.subclasse?" · "+esc(f.subclasse):"")+" · "+esc(f.classe||"—")+(f.gestor?' · <span class="g">'+esc(titleCase(f.gestor))+'</span>':"")+(f.ano?" · desde "+f.ano:"")+'</span><span class="p">'+money(f.pl)+'</span></button>').join("")
+      :'<div class="vazio">'+(q?"Nenhum fundo encontrado com "+({nome:"nome",cnpj:"CNPJ",gestor:"gestor"})[state.campo]+" “"+esc(q)+"”"+(state.encerrados?"":" entre os ativos. Marque “Incluir fundos encerrados” para buscar também os antigos")+".":"Digite para buscar.")+'</div>';
     if(!q&&lista.length)res.insertAdjacentHTML("afterbegin",'<div class="vazio" style="padding:8px 12px 4px">Maiores fundos por patrimônio</div>');
     res.hidden=false;
   }catch(e){res.innerHTML='<div class="vazio erro">'+esc(e.message)+'</div>';res.hidden=false;}
@@ -306,6 +326,12 @@ res.addEventListener("mousedown",e=>{const b=e.target.closest("button[data-i]");
 document.addEventListener("click",e=>{if(!e.target.closest(".search"))res.hidden=true;});
 
 // ---------- controles ----------
+const PLACE={nome:"Nome do fundo",cnpj:"CNPJ (só números ou formatado)",gestor:"Nome da gestora"};
+function aplicaCampo(){$("campo").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.c===state.campo));inp.placeholder=PLACE[state.campo];inp.inputMode=state.campo==="cnpj"?"numeric":"text";}
+$("campo").querySelectorAll("button").forEach(b=>b.onclick=()=>{state.campo=b.dataset.c;aplicaCampo();persist();inp.value="";inp.focus();buscar();});
+$("encerrados").checked=state.encerrados;
+$("encerrados").onchange=e=>{state.encerrados=e.target.checked;persist();if(!res.hidden||inp.value)buscar();};
+aplicaCampo();
 {const p=$("period");PERIODS.forEach(([k,l])=>{const b=document.createElement("button");b.type="button";b.textContent=l;b.dataset.k=k;b.onclick=()=>{state.period=k;carregar();};p.appendChild(b);});}
 $("bCDI").checked=state.bench.CDI;$("bIBOV").checked=state.bench.IBOV;
 $("bCDI").onchange=e=>{state.bench.CDI=e.target.checked;carregar();};
@@ -417,7 +443,7 @@ function renderTable(){
   const info=[["Classe CVM","classe"],["Classificação ANBIMA","classe_anbima"],["Gestor","gestor",titleCase],["Administrador","administrador",titleCase],
     ["Patrimônio líquido","pl",money],["Cotistas","cotistas",intf],["Taxa de administração","taxa_adm"],["Taxa de performance","taxa_perf"],
     ["Público-alvo","publico_alvo"],["Início das atividades","data_inicio",fdate],["Última cota","data_ultima_cota",fdate],["CNPJ","cnpj_formatado"]];
-  let h='<thead><tr><th></th>'+ss.map(s=>'<th class="'+(s.tipo==="benchmark"?"bm":"")+'"><span class="sw" style="background:'+s.color+'"></span>'+esc(short(s.nome,44))+'</th>').join("")+'</tr></thead><tbody>';
+  let h='<thead><tr><th></th>'+ss.map(s=>'<th class="'+(s.tipo==="benchmark"?"bm":"")+'"><span class="sw" style="background:'+s.color+'"></span>'+esc(short(s.nome,44))+(s.obs?'<span class="obs">'+esc(s.obs)+'</span>':'')+'</th>').join("")+'</tr></thead><tbody>';
   rows.forEach(r=>{
     if(r[0]==="sep"){h+='<tr class="sep"><td colspan="'+(ss.length+1)+'">'+r[1]+'</td></tr>';return;}
     const vals=ms.map(r[1]);let bi=-1;
@@ -436,7 +462,7 @@ obterMeta().then(d=>{if(d.ultima_cota)$("base").textContent="Dados até "+fdate(
   const f=d.fontes||{};$("fontes").textContent="Fontes: informe diário e cadastro de fundos da CVM (dados.cvm.gov.br); CDI: "+(f.cdi||"indisponível")+"; Ibovespa: "+(f.ibov||"indisponível")+". Atualizado em "+new Date(d.atualizado).toLocaleString("pt-BR")+".";}).catch(()=>{});
 if(!state.sel.length&&!new URLSearchParams(location.search).has("f")&&!localStorage.getItem("lupa-visitou")){
   try{localStorage.setItem("lupa-visitou","1");}catch(e){}
-  indiceFundos().then(idx=>{if(state.sel.length)return;const ex=idx.filter(f=>(f.cotistas||0)>=1000).slice(0,3);ex.forEach(f=>{state.sel.push(f.id);state.nomes[f.id]=titleCase(f.nome);});if(ex.length)carregar();}).catch(()=>{});
+  indiceFundos().then(idx=>{if(state.sel.length)return;const ex=idx.filter(f=>f.ativo&&(f.cotistas||0)>=1000).slice(0,3);ex.forEach(f=>{state.sel.push(f.id);state.nomes[f.id]=titleCase(f.nome);});if(ex.length)carregar();}).catch(()=>{});
 }
 let rt;window.addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(drawChart,120);});
 carregar();

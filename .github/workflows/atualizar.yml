@@ -11,7 +11,7 @@ on:
     paths: ["site/**", "scripts/**", ".github/workflows/**"]
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
   actions: write
@@ -23,7 +23,7 @@ concurrency:
 jobs:
   coletar:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -31,25 +31,69 @@ jobs:
         with:
           node-version: 20
 
-      # Guarda os arquivos da CVM entre execuções para não baixar 5 anos todo dia
-      - name: Cache dos arquivos da CVM
+      - name: Data
+        id: data
+        run: echo "mes=$(date -u +%Y%m)" >> "$GITHUB_OUTPUT"
+
+      # Arquivos anuais da CVM não mudam: restaura o cache e só salva de novo quando entra arquivo novo
+      - name: Restaurar anos antigos da CVM
+        uses: actions/cache/restore@v4
+        with:
+          path: cache/hist
+          key: cvm-hist-v2-
+          restore-keys: cvm-hist-v2-
+
+      # Arquivos mensais: um cache por mês (os dois meses mais recentes são sempre baixados de novo)
+      - name: Cache dos meses da CVM
         uses: actions/cache@v4
         with:
-          path: cache/inf
-          key: cvm-${{ github.run_id }}
-          restore-keys: cvm-
+          path: cache/mensal
+          key: cvm-mensal-v2-${{ steps.data.outputs.mes }}
+          restore-keys: cvm-mensal-v2-
 
       - name: Coletar dados
         env:
-          ANOS: "5"
+          INICIO: "2000"
+          NODE_OPTIONS: --max-old-space-size=13000
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
-        run: node scripts/coleta.mjs
+        run: |
+          set -o pipefail
+          node scripts/coleta.mjs 2>&1 | tee coleta.log
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+
+      - name: Salvar anos antigos da CVM no cache
+        if: success()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: cache/hist
+          key: cvm-hist-v2-${{ hashFiles('cache/hist/*.zip', 'cache/hist/ausentes.json') }}
+
+      # Guarda o log no ramo "logs" do repositório (dá para ver mesmo se algo falhar)
+      - name: Salvar log
+        if: always()
+        run: |
+          [ -f coleta.log ] || exit 0
+          cp coleta.log /tmp/coleta.log
+          [ -f site/dados/meta.json ] && cp site/dados/meta.json /tmp/meta.json || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --depth 1 origin logs 2>/dev/null && git checkout -B logs FETCH_HEAD || git checkout --orphan logs
+          git rm -rq --cached . 2>/dev/null || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name cache -exec rm -rf {} +
+          echo "cache/" > .gitignore
+          cp /tmp/coleta.log coleta.log
+          [ -f /tmp/meta.json ] && cp /tmp/meta.json meta.json || true
+          echo "${{ job.status }} $(date -u +%FT%TZ) run ${{ github.run_id }}" > status.txt
+          git add -A
+          git commit -qm "Log da execução ${{ github.run_id }}" || true
+          git push -f origin logs
+
 
   publicar:
     needs: coletar

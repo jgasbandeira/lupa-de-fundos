@@ -23,8 +23,8 @@ Aba **Actions** → **Atualizar dados e publicar site** → **Run workflow**.
 
 ## O que entra no site
 
-- Fundos com cota nos últimos 45 dias e PL de pelo menos R$ 1 milhão (`PL_MIN` no workflow).
-- Histórico dos últimos 5 anos (`ANOS` no workflow).
+- Todos os fundos que já enviaram informe diário à CVM, ativos e encerrados. Os encerrados aparecem na busca ao marcar "Incluir fundos encerrados".
+- Histórico completo, desde o início do informe diário da CVM. As séries ficam compactadas (gzip) para caber no limite de 1 GB do GitHub Pages.
 - Subclasses criadas na adaptação à RCVM 175 têm o histórico anterior emendado a partir da classe.
 
 ## Métricas
@@ -40,3 +40,7 @@ Aba **Actions** → **Atualizar dados e publicar site** → **Run workflow**.
 - FIIs, FIDCs e ETFs não estão no informe diário da CVM.
 
 Rentabilidade passada não garante resultados futuros. Este site não é recomendação de investimento.
+
+## Log das execuções
+
+O resultado da última coleta fica no ramo [`logs`](../../tree/logs): `coleta.log`, `meta.json` e `status.txt`.

@@ -4,26 +4,29 @@
 //   node scripts/coleta.mjs
 //
 // Variáveis de ambiente (opcionais):
-//   ANOS=5                 anos de histórico
+//   INICIO=2000            primeiro ano do histórico (a CVM tem informe diário desde 2005)
 //   CACHE=cache            pasta com os zips já baixados (o workflow guarda entre execuções)
 //   SAIDA=site/dados       pasta de saída
 //   SITE_URL=https://...   site publicado; usado como reserva se o CDI ou o Ibovespa falharem
 //   CVM_BASE, BCB_BASE, YAHOO_BASE   trocar as fontes (testes)
-//   PL_MIN=1000000         PL mínimo para o fundo entrar no site
+//   PL_MIN=0               PL mínimo (na última cota) para o fundo entrar no site
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import zlib from "node:zlib";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import path from "node:path";
 import readline from "node:readline";
 
-const ANOS = +(process.env.ANOS || 5);
+const INICIO = +(process.env.INICIO || 2000);
 const CACHE = process.env.CACHE || "cache";
 const SAIDA = process.env.SAIDA || "site/dados";
 const SITE_URL = (process.env.SITE_URL || "").replace(/\/$/, "");
 const CVM = (process.env.CVM_BASE || "https://dados.cvm.gov.br/dados/FI").replace(/\/$/, "");
 const BCB = (process.env.BCB_BASE || "https://api.bcb.gov.br").replace(/\/$/, "");
 const YAHOO = (process.env.YAHOO_BASE || "https://query2.finance.yahoo.com").replace(/\/$/, "");
-const PL_MIN = +(process.env.PL_MIN || 1e6);
+const PL_MIN = +(process.env.PL_MIN || 0);
 const DIAS_ATIVO = 45;
 const UA = "LupaDeFundos/1.0 (comparador de fundos; dados publicos CVM/BCB)";
 
@@ -38,9 +41,8 @@ const DIA_MS = 864e5;
 const dia = (iso) => Math.round(Date.parse(iso.slice(0, 10) + "T00:00:00Z") / DIA_MS);
 const iso = (d) => new Date(d * DIA_MS).toISOString().slice(0, 10);
 const hoje = new Date();
-const anoIni = hoje.getUTCFullYear() - ANOS;
-const mesIni = hoje.getUTCMonth() + 1;
-const DIA_INI = dia(`${anoIni}-${String(mesIni).padStart(2, "0")}-01`);
+const DIA_INI = dia(`${INICIO}-01-01`);
+const DIA_HOJE = Math.floor(Date.now() / DIA_MS);
 
 // ------------------------------------------------------------------ http
 async function baixar(url, destino, { forcar = false } = {}) {
@@ -51,8 +53,7 @@ async function baixar(url, destino, { forcar = false } = {}) {
       const r = await fetch(url, { headers: { "User-Agent": UA } });
       if (r.status === 404) return "404";
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const buf = Buffer.from(await r.arrayBuffer());
-      fs.writeFileSync(destino + ".part", buf);
+      await pipeline(Readable.fromWeb(r.body), fs.createWriteStream(destino + ".part"));
       fs.renameSync(destino + ".part", destino);
       return "ok";
     } catch (e) {
@@ -143,7 +144,7 @@ async function carregarInforme(zip, filtroMes) {
       const q = num(c[ix.q]);
       if (!(q > 0)) continue;
       const d = dia(ds);
-      if (d < DIA_INI) continue;
+      if (d < DIA_INI || d > DIA_HOJE + 1) continue; // descarta datas inválidas
       const cnpj = digitos(c[ix.c]).padStart(14, "0");
       const sub = ix.s >= 0 ? (c[ix.s] || "").trim() : "";
       const f = fundo(sub ? `${cnpj}.${sub}` : cnpj, cnpj, sub);
@@ -157,30 +158,45 @@ async function carregarInforme(zip, filtroMes) {
 }
 
 async function informes() {
-  const meses = [];
-  for (let a = anoIni, m = mesIni; a < hoje.getUTCFullYear() || (a === hoje.getUTCFullYear() && m <= hoje.getUTCMonth() + 1); m++) {
-    if (m === 13) { a++; m = 1; if (a > hoje.getUTCFullYear()) break; }
-    meses.push(`${a}${String(m).padStart(2, "0")}`);
+  // A CVM guarda os anos antigos em arquivos anuais (HIST) e os recentes em arquivos mensais (DADOS).
+  // Arquivos anuais nunca mudam: ficam no cache para sempre. Os dois meses mais recentes são sempre
+  // baixados de novo, porque a CVM revisa e acrescenta dias.
+  const anoAtual = hoje.getUTCFullYear(), mesAtual = hoje.getUTCMonth() + 1;
+  const ref = new Date(Date.UTC(anoAtual, mesAtual - 2, 1));
+  const recentes = new Set([`${anoAtual}${String(mesAtual).padStart(2, "0")}`, `${ref.getUTCFullYear()}${String(ref.getUTCMonth() + 1).padStart(2, "0")}`]);
+  const arqAusentes = path.join(CACHE, "hist", "ausentes.json");
+  let ausentes = {};
+  try { ausentes = JSON.parse(fs.readFileSync(arqAusentes, "utf8")); } catch {}
+
+  for (let a = INICIO; a <= anoAtual; a++) {
+    const anual = path.join(CACHE, "hist", `inf_diario_fi_${a}.zip`);
+    if (fs.existsSync(anual)) {
+      const n = await carregarInforme(anual);
+      log(`informe ${a} (anual, cache): ${n.toLocaleString("pt-BR")} cotas`);
+      continue;
+    }
+    if (ausentes[a]) continue; // ano sem dados na CVM
+    const faltam = [];
+    for (let m = 1; m <= (a === anoAtual ? mesAtual : 12); m++) {
+      const am = `${a}${String(m).padStart(2, "0")}`;
+      const dest = path.join(CACHE, "mensal", `inf_diario_fi_${am}.zip`);
+      const st = await baixar(`${CVM}/DOC/INF_DIARIO/DADOS/inf_diario_fi_${am}.zip`, dest, { forcar: recentes.has(am) });
+      if (st === "404") { faltam.push(`${a}-${String(m).padStart(2, "0")}`); continue; }
+      const n = await carregarInforme(dest);
+      log(`informe ${am}: ${n.toLocaleString("pt-BR")} cotas (${st})`);
+    }
+    if (!faltam.length) continue;
+    const st = await baixar(`${CVM}/DOC/INF_DIARIO/HIST/inf_diario_fi_${a}.zip`, anual);
+    if (st === "404") {
+      if (faltam.length === 12 && a < anoAtual - 1) ausentes[a] = true;
+      else if (a >= 2005) aviso(`sem informe da CVM para ${faltam.join(", ")}`);
+      continue;
+    }
+    const n = await carregarInforme(anual, faltam);
+    log(`informe ${a} (anual, ${faltam.length} meses): ${n.toLocaleString("pt-BR")} cotas (${st})`);
   }
-  // Os dois meses mais recentes são sempre baixados de novo: a CVM revisa e acrescenta dias.
-  const recentes = new Set(meses.slice(-2));
-  const hist = new Map(); // ano -> [meses que precisam do arquivo anual]
-  for (const am of meses) {
-    const url = `${CVM}/DOC/INF_DIARIO/DADOS/inf_diario_fi_${am}.zip`;
-    const dest = path.join(CACHE, "inf", `inf_diario_fi_${am}.zip`);
-    const st = await baixar(url, dest, { forcar: recentes.has(am) });
-    if (st === "404") { const a = am.slice(0, 4); if (!hist.has(a)) hist.set(a, []); hist.get(a).push(`${a}-${am.slice(4)}`); continue; }
-    const n = await carregarInforme(dest);
-    log(`informe ${am}: ${n.toLocaleString("pt-BR")} cotas (${st})`);
-  }
-  for (const [a, ms] of hist) {
-    const url = `${CVM}/DOC/INF_DIARIO/HIST/inf_diario_fi_${a}.zip`;
-    const dest = path.join(CACHE, "inf", `inf_diario_fi_${a}.zip`);
-    const st = await baixar(url, dest);
-    if (st === "404") { aviso(`sem informe para ${ms.join(", ")}`); continue; }
-    const n = await carregarInforme(dest, ms);
-    log(`informe anual ${a} (${ms.length} meses): ${n.toLocaleString("pt-BR")} cotas (${st})`);
-  }
+  fs.mkdirSync(path.dirname(arqAusentes), { recursive: true });
+  fs.writeFileSync(arqAusentes, JSON.stringify(ausentes));
 }
 
 // ------------------------------------------------------------------ cadastro
@@ -271,7 +287,7 @@ async function cdi() {
   const br = (d) => iso(d).split("-").reverse().join("/");
   while (ini <= fim) {
     const ate = Math.min(fim, ini + 364); // consultas de até 1 ano
-    const lista = await json(`${BCB}/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial=${br(ini)}&dataFinal=${br(ate)}`);
+    const lista = await json(`${BCB}/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial=${br(ini)}&dataFinal=${br(ate)}`, 1);
     for (const x of lista) { const [d, m, a] = x.data.split("/"); pts.set(dia(`${a}-${m}-${d}`), +x.valor); }
     ini = ate + 1;
   }
@@ -348,6 +364,16 @@ function compacta(d, v, dig = 10) {
   for (let i = 1; i < d.length; i++) dd[i - 1] = d[i] - d[i - 1];
   return { d0: d[0], dd, q: v.map((x) => +x.toPrecision(dig)) };
 }
+// Série de fundo: l0 = ln(cota inicial) * 1e7; dl = diferenças de ln(cota) * 1e7 (inteiros). Precisão relativa de 1e-7, sem acúmulo de erro.
+function serieLog(d, q) {
+  const dd = new Array(d.length - 1), dl = new Array(d.length - 1);
+  let ant = Math.round(Math.log(q[0]) * 1e7);
+  for (let i = 1; i < d.length; i++) {
+    const L = Math.round(Math.log(q[i]) * 1e7);
+    dd[i - 1] = d[i] - d[i - 1]; dl[i - 1] = L - ant; ant = L;
+  }
+  return { d0: d[0], dd, l0: Math.round(Math.log(q[0]) * 1e7), dl };
+}
 const desc = (s) => (s || "").replace(/\s+/g, " ").trim() || null;
 
 function ordenar(f) {
@@ -362,7 +388,7 @@ function ordenar(f) {
 
 async function main() {
   fs.mkdirSync(CACHE, { recursive: true });
-  log(`início: ${iso(DIA_INI)} (${ANOS} anos)`);
+  log(`início: ${INICIO}`);
   await informes();
   for (const f of fundos.values()) ordenar(f);
   await cadastro();
@@ -399,40 +425,46 @@ async function main() {
     }
   }
 
-  // Seleção de fundos ativos
+  // Todos os fundos com pelo menos duas cotas (ativos e encerrados)
   let ultimoDia = 0;
   for (const f of fundos.values()) if (f.ult > ultimoDia) ultimoDia = f.ult;
-  const ativos = [...fundos.entries()].filter(([, f]) => f.ult >= ultimoDia - DIAS_ATIVO && f.d.length >= 2 && (f.pl >= PL_MIN || !isFinite(f.pl)));
-  log(`fundos com cota: ${fundos.size.toLocaleString("pt-BR")}; ativos com PL >= ${PL_MIN}: ${ativos.length.toLocaleString("pt-BR")}`);
-  if (ativos.length < 1) throw new Error("nenhum fundo ativo; abortando para não publicar site vazio");
+  const sel = [...fundos.entries()].filter(([, f]) => f.d.length >= 2 && (!(PL_MIN > 0) || f.pl >= PL_MIN));
+  log(`fundos com cota: ${fundos.size.toLocaleString("pt-BR")}; publicados: ${sel.length.toLocaleString("pt-BR")}`);
+  if (sel.length < 1) throw new Error("nenhum fundo; abortando para não publicar site vazio");
 
   fs.rmSync(SAIDA, { recursive: true, force: true });
   fs.mkdirSync(path.join(SAIDA, "f"), { recursive: true });
 
   const lista = [];
-  let bytes = 0;
-  for (const [id, f] of ativos) {
+  let bytes = 0, pontos = 0;
+  for (const [id, f] of sel) {
     const c = cad.get(f.cnpj) || {};
     const nome = desc(subs.get(id)) || (f.sub ? `${desc(c.nome) || f.cnpj} · subclasse ${f.sub}` : desc(c.nome)) || `Fundo ${f.cnpj}`;
+    const ativo = f.ult >= ultimoDia - DIAS_ATIVO ? 1 : 0;
     const info = {
       id, cnpj: f.cnpj, sub: f.sub || null, nome, tipo: desc(f.tipo), classe: desc(c.classe), anbima: desc(c.anbima),
       gestor: desc(c.gestor), admin: desc(c.admin), taxa_adm: c.taxa_adm || null, taxa_perf: c.taxa_perf || null,
-      publico: desc(c.publico), inicio: c.inicio || null, situacao: desc(c.situacao),
+      publico: desc(c.publico), inicio: c.inicio || null, situacao: desc(c.situacao), ativo,
       pl: isFinite(f.pl) ? Math.round(f.pl) : null, cotistas: isFinite(f.cot) ? f.cot : null, ultima: iso(f.ult),
-      encadeado: f.encadeado || null,
+      primeira: iso(f.d[0]), encadeado: f.encadeado || null,
     };
-    const txt = JSON.stringify({ ...info, serie: compacta(f.d, f.q) });
-    fs.writeFileSync(path.join(SAIDA, "f", `${id}.json`), txt);
-    bytes += txt.length;
-    lista.push([id, nome, info.classe, info.gestor, info.pl, info.cotistas, f.sub ? 1 : 0]);
+    const gz = zlib.gzipSync(JSON.stringify({ ...info, serie: serieLog(f.d, f.q) }), { level: 9 });
+    fs.writeFileSync(path.join(SAIDA, "f", `${id}.json.gz`), gz);
+    bytes += gz.length; pontos += f.d.length;
+    lista.push([id, nome, info.classe, info.gestor, info.pl, info.cotistas, ativo, info.primeira.slice(0, 4), info.ultima.slice(0, 7)]);
   }
-  lista.sort((a, b) => (b[4] || 0) - (a[4] || 0));
-  fs.writeFileSync(path.join(SAIDA, "fundos.json"), JSON.stringify({ campos: ["id", "nome", "classe", "gestor", "pl", "cotistas", "subclasse"], fundos: lista }));
+  // Ativos primeiro, depois por PL
+  lista.sort((a, b) => b[6] - a[6] || (b[4] || 0) - (a[4] || 0));
+  const idx = zlib.gzipSync(JSON.stringify({ campos: ["id", "nome", "classe", "gestor", "pl", "cotistas", "ativo", "ano_inicio", "ultima"], fundos: lista }), { level: 9 });
+  fs.writeFileSync(path.join(SAIDA, "fundos.json.gz"), idx);
   fs.writeFileSync(path.join(SAIDA, "indices.json"), JSON.stringify(indices));
-  const meta = { atualizado: new Date().toISOString(), ultima_cota: iso(ultimoDia), fundos: lista.length, inicio: iso(DIA_INI),
+  const meta = { atualizado: new Date().toISOString(), ultima_cota: iso(ultimoDia), fundos: lista.length,
+    fundos_ativos: lista.filter((x) => x[6]).length, inicio: iso(sel.reduce((m, [, f]) => Math.min(m, f.d[0]), Infinity)), cotas: pontos,
+    tamanho_mb: Math.round((bytes + idx.length) / 1e6),
     fontes: { cdi: indices.cdi?.fonte || null, ibov: indices.ibov?.fonte || null }, avisos };
   fs.writeFileSync(path.join(SAIDA, "meta.json"), JSON.stringify(meta, null, 1));
-  log(`saída: ${lista.length} fundos, ${(bytes / 1e6).toFixed(0)} MB de séries, última cota ${meta.ultima_cota}`);
+  log(`saída: ${lista.length} fundos (${meta.fundos_ativos} ativos), ${pontos.toLocaleString("pt-BR")} cotas, ${meta.tamanho_mb} MB, desde ${meta.inicio}, última cota ${meta.ultima_cota}`);
+  if (meta.tamanho_mb > 950) aviso(`site com ${meta.tamanho_mb} MB, perto do limite de 1 GB do GitHub Pages`);
   if (avisos.length) log(`${avisos.length} aviso(s)`);
 }
 
