@@ -47,6 +47,8 @@ button,input,select{font:inherit;color:inherit}
 .status{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--fraco);padding-block:4px;border-top:1px solid var(--borda);text-transform:uppercase;letter-spacing:.03em;flex-wrap:wrap}
 .status .fonte{color:var(--ambar);font-weight:700}
 .status .dir{margin-left:auto}
+.canc{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--texto);margin-left:8px}
+.canc input{accent-color:var(--ambar);margin:0}
 
 main{flex:1;display:grid;gap:10px;padding-block:10px;align-content:start}
 .painel{background:var(--sup);border:1px solid var(--borda);min-width:0}
@@ -151,7 +153,7 @@ footer{border-top:1px solid var(--borda);font-size:10px;color:var(--fraco);paddi
     </nav>
     <button class="tema" id="tema" type="button">Tema claro</button>
   </div>
-  <div class="wrap status"><span class="fonte">CVM · CDI · IBOV</span><span id="st-dados">Dados até —</span><span class="dir" id="st-series">—</span></div>
+  <div class="wrap status"><span class="fonte">CVM · CDI · IBOV</span><span id="st-dados">Dados até —</span><label class="canc"><input type="checkbox" id="st-canc"> Incluir fundos cancelados</label><span class="dir" id="st-series">—</span></div>
 </header>
 <main class="wrap" id="app"><div class="carregando">Carregando…</div></main>
 <footer class="wrap" id="rodape">Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI · Ibovespa · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento</footer>
@@ -175,6 +177,12 @@ const cnpjFmt=c=>(c||"").replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,"$1.$2.
 const norm=t=>(t||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
 const cls=x=>x==null||!isFinite(x)?"":x>0?"pos":x<0?"neg":"";
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v);}catch(e){return null;}}
+
+// ================================================================ fundos cancelados (ocultos por padrão em todas as telas)
+let incluirCancelados=ls("lupa-canc")==="1";
+const cancelado=f=>f.situacao==="Cancelada"||(!f.ativo&&f.situacao==="Sem cadastro (só no informe)");
+const visivel=f=>incluirCancelados||!cancelado(f);
+async function listaVisivel(){const idx=await indice();return incluirCancelados?idx.lista:idx.lista.filter(visivel);}
 
 // ================================================================ dados
 const DADOS="dados/";
@@ -315,7 +323,7 @@ function busca(el,op){
     const idx=await indice();const dig=q.replace(/[.\-\/\s]/g,"");let r;
     if(/^\d{3,}$/.test(dig))r=idx.lista.filter(f=>f.cnpj.startsWith(dig));
     else{const tk=norm(q).split(/\s+/).filter(Boolean);r=idx.lista.filter(f=>tk.every(t=>f.bn.includes(t)));}
-    if(op.filtro)r=r.filter(op.filtro);res=r.slice(0,40);foco=-1;
+    r=r.filter(visivel);if(op.filtro)r=r.filter(op.filtro);res=r.slice(0,40);foco=-1;
     drop.innerHTML=res.length?res.map((f,i)=>'<button type="button" data-i="'+i+'"><span class="n">'+h(f.nome)+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</span><span class="c">'+cnpjFmt(f.cnpj)+'</span><span class="t">'+h(f.classe||f.tipo||"—")+'</span></button>').join(""):'<div class="vazio">Nenhum fundo encontrado.</div>';
     drop.hidden=false;
   }
@@ -520,17 +528,18 @@ function montarRanking(el,op){
   desenha();
 }
 async function telaRanking(){
-  const idx=await indice();
+  const lista=await listaVisivel();
   const F=filtrosPadrao();try{Object.assign(F,JSON.parse(ls("lupa-rk")||"{}"));}catch(e){}
+  if(!incluirCancelados&&F.sit==="Cancelada")F.sit="";
   app.innerHTML='<div id="rk" style="display:grid;gap:10px"></div>';
-  montarRanking($("#rk"),{lista:idx.lista,F,titulo:"Filtros",aoMudar:x=>ls("lupa-rk",JSON.stringify(x))});
+  montarRanking($("#rk"),{lista,F,titulo:"Filtros",aoMudar:x=>ls("lupa-rk",JSON.stringify(x))});
 }
 
 // ================================================================ F3 GESTORES / F4 ADMINISTRADORES
 async function telaGrupos(r,campo){
-  const idx=await indice();const nomeTela=campo==="gestor"?"Gestores":"Administradores",sing=campo==="gestor"?"gestor":"administrador";
+  const listaV=await listaVisivel();const nomeTela=campo==="gestor"?"Gestores":"Administradores",sing=campo==="gestor"?"gestor":"administrador";
   const grupos=new Map();
-  for(const f of idx.lista){const g=f[campo];if(!g)continue;let o=grupos.get(g);if(!o){o={nome:g,n:0,at:0,pl:0};grupos.set(g,o);}o.n++;if(f.ativo){o.at++;if(f.pl>0)o.pl+=f.pl;}}
+  for(const f of listaV){const g=f[campo];if(!g)continue;let o=grupos.get(g);if(!o){o={nome:g,n:0,at:0,pl:0};grupos.set(g,o);}o.n++;if(f.ativo){o.at++;if(f.pl>0)o.pl+=f.pl;}}
   const lista=[...grupos.values()];const st={q:"",ord:"pl",dir:-1};
   const escolhido=r.arg||"";
   app.innerHTML=`<section class="painel"><div class="cab">${nomeTela} · busca<span class="sub">${nf0.format(lista.length)} ${nomeTela.toLowerCase()}</span></div><div class="corpo"><div class="prompt"><input type="search" id="gr-q" placeholder="Buscar ${nomeTela.toLowerCase()} por nome…" aria-label="Buscar"></div></div>
@@ -548,16 +557,16 @@ async function telaGrupos(r,campo){
   desenha();
   const alvo=$("#gr-f");
   if(!escolhido){alvo.innerHTML='<section class="painel"><div class="cab">Fundos</div><div class="corpo"><div class="fraco">Escolha um '+sing+' acima para ver os fundos sob sua responsabilidade. Os filtros são os mesmos do ranking, e a seleção leva os fundos para a comparação.</div></div></section>';return;}
-  montarRanking(alvo,{lista:idx.lista,fixo:f=>f[campo]===escolhido,F:filtrosPadrao(),titulo:"Fundos · "+escolhido});
+  montarRanking(alvo,{lista:listaV,fixo:f=>f[campo]===escolhido,F:filtrosPadrao(),titulo:"Fundos · "+escolhido});
   const sel=document.querySelector("#gr-t tr.sel");if(sel)sel.scrollIntoView({block:"nearest"});
 }
 
 // ================================================================ F5 ESTRUTURADOS
 const TIPOS_EST=/^(FII|FIDC|FIP|FIAGRO|FICART|FUNCINE|FMIEE|FIC ?FIP|FIC ?FIDC|FII-FIAGRO|FIDC-FIAGRO|FIP-FIAGRO|FIIM|FMP-FGTS)/i;
 async function telaEstruturados(){
-  const idx=await indice();
+  const listaE=await listaVisivel();
   app.innerHTML='<section class="painel"><div class="cab">Estruturados<span class="sub">FII · FIDC · FIP · Fiagro e afins</span></div><div class="corpo"><div class="fraco">Esses fundos não publicam cota diária na CVM. Reportam por documento periódico (mensal ou trimestral). Aqui aparecem o patrimônio, os cotistas e a rentabilidade dos últimos 12 meses informados nesses documentos (FII, FIDC e Fiagro), além do cadastro e da situação.</div></div></section><div id="es" style="display:grid;gap:10px"></div>';
-  montarRanking($("#es"),{lista:idx.lista,fixo:f=>TIPOS_EST.test(f.tipo||"")||TIPOS_EST.test(f.classe||""),F:filtrosPadrao(),titulo:"Filtros"});
+  montarRanking($("#es"),{lista:listaE,fixo:f=>TIPOS_EST.test(f.tipo||"")||TIPOS_EST.test(f.classe||""),F:filtrosPadrao(),titulo:"Filtros"});
 }
 
 // ================================================================ FICHA DO FUNDO
@@ -704,6 +713,8 @@ function desempenhoMensal(c,f){
 }
 
 // ================================================================ tema e status
+const cancBox=$("#st-canc");cancBox.checked=incluirCancelados;
+cancBox.onchange=()=>{incluirCancelados=cancBox.checked;ls("lupa-canc",incluirCancelados?"1":"0");render();};
 const temaBtn=$("#tema");
 function aplicaTema(t){if(t==="claro")document.documentElement.setAttribute("data-tema","claro");else document.documentElement.removeAttribute("data-tema");temaBtn.textContent=t==="claro"?"Tema escuro":"Tema claro";}
 aplicaTema(ls("lupa-tema")||"escuro");
