@@ -164,7 +164,7 @@ async function informes() {
   const anoAtual = hoje.getUTCFullYear(), mesAtual = hoje.getUTCMonth() + 1;
   const ref = new Date(Date.UTC(anoAtual, mesAtual - 2, 1));
   const recentes = new Set([`${anoAtual}${String(mesAtual).padStart(2, "0")}`, `${ref.getUTCFullYear()}${String(ref.getUTCMonth() + 1).padStart(2, "0")}`]);
-  const arqAusentes = path.join(CACHE, "hist", "ausentes.json");
+  const arqAusentes = path.join(CACHE, "hist", "ausentes-v2.json");
   let ausentes = {};
   try { ausentes = JSON.parse(fs.readFileSync(arqAusentes, "utf8")); } catch {}
 
@@ -186,7 +186,7 @@ async function informes() {
       log(`informe ${am}: ${n.toLocaleString("pt-BR")} cotas (${st})`);
     }
     if (!faltam.length) continue;
-    const st = await baixar(`${CVM}/DOC/INF_DIARIO/HIST/inf_diario_fi_${a}.zip`, anual);
+    const st = await baixar(`${CVM}/DOC/INF_DIARIO/DADOS/HIST/inf_diario_fi_${a}.zip`, anual);
     if (st === "404") {
       if (faltam.length === 12 && a < anoAtual - 1) ausentes[a] = true;
       else if (a >= 2005) aviso(`sem informe da CVM para ${faltam.join(", ")}`);
