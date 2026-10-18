@@ -47,9 +47,11 @@ jobs:
       - name: Cache dos meses da CVM
         uses: actions/cache@v4
         with:
-          path: cache/mensal
-          key: cvm-mensal-v2-${{ steps.data.outputs.mes }}
-          restore-keys: cvm-mensal-v2-
+          path: |
+            cache/mensal
+            cache/extrato
+          key: cvm-mensal-v3-${{ steps.data.outputs.mes }}
+          restore-keys: cvm-mensal-v3-
 
       - name: Coletar dados
         env:

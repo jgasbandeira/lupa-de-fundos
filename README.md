@@ -1,6 +1,14 @@
 # Lupa de Fundos
 
-Comparador de fundos de investimento brasileiros: busque por nome, gestora ou CNPJ e compare até cinco fundos lado a lado (rentabilidade, % do CDI, volatilidade, Sharpe, drawdown e cadastro), contra CDI e Ibovespa.
+Terminal de fundos de investimento brasileiros com dados públicos da CVM:
+
+- **F1 Compara**: até 8 fundos lado a lado, janelas de 1M a MAX ou datas livres, mais de 30 indicadores (Sharpe, Sortino, VaR, beta, alfa de Jensen…) e matriz de correlação.
+- **F2 Ranking**: todos os fundos com filtros por universo, classe, situação, série, PL e taxa; colunas ordenáveis; seleção vai para a comparação.
+- **F3 Gestores / F4 Administradores**: número de fundos e PL total; ao escolher um, a lista dos fundos dele.
+- **F5 Estruturados**: FII, FIDC, FIP, Fiagro e afins (cadastro e patrimônio declarado).
+- **Ficha do fundo**: desempenho, PL e cotistas, retorno mês a mês contra o CDI e cadastro completo.
+
+Atalhos: F1 a F5 trocam de tela. Tema claro e escuro.
 
 **Site:** https://jgasbandeira.github.io/lupa-de-fundos/
 
@@ -10,7 +18,7 @@ Tudo roda no GitHub, sem servidor e sem nada no seu computador.
 
 1. Duas vezes por dia (7h30 e 20h30, horário de Brasília) o GitHub Actions roda `scripts/coleta.mjs`.
 2. O script baixa os dados públicos:
-   - CVM: informe diário (cota, PL, cotistas) e cadastro de fundos, classes e subclasses
+   - CVM: informe diário (cota, PL, cotistas), cadastro de fundos, classes e subclasses, e extrato de informações (taxas, aplicação mínima, prazos)
    - Banco Central: CDI diário (SGS, série 12)
    - Ibovespa (Yahoo Finance)
 3. Gera arquivos estáticos em `site/dados/` e publica o site no GitHub Pages.
@@ -36,7 +44,7 @@ Aba **Actions** → **Atualizar dados e publicar site** → **Run workflow**.
 ## Limitações
 
 - Ibovespa vem do Yahoo Finance, que não é fonte oficial. Se falhar, o site mantém a série da publicação anterior.
-- Taxas de administração e performance vêm do cadastro antigo da CVM (`cad_fi.csv`) e podem faltar em fundos novos.
+- Taxas vêm do extrato de informações da CVM (ou do cadastro antigo quando o extrato não tem). Podem faltar em fundos que não enviaram extrato.
 - FIIs, FIDCs e ETFs não estão no informe diário da CVM.
 
 Rentabilidade passada não garante resultados futuros. Este site não é recomendação de investimento.
