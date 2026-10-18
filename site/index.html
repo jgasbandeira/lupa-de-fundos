@@ -206,7 +206,7 @@ const fichas=new Map();
 async function ficha(id){
   if(fichas.has(id))return fichas.get(id);
   const f=await getJson("f/"+id+".json.gz");
-  if(f.serie){const e=expandeCota(f.serie);f.d=e.d;f.q=e.v;}
+  if(f.serie&&typeof f.serie==="object"){const e=expandeCota(f.serie);f.d=e.d;f.q=e.v;}
   f.sem=expandeSemanal(f.semanal);
   fichas.set(id,f);return f;
 }
@@ -556,7 +556,7 @@ async function telaGrupos(r,campo){
 const TIPOS_EST=/^(FII|FIDC|FIP|FIAGRO|FICART|FUNCINE|FMIEE|FIC ?FIP|FIC ?FIDC|FII-FIAGRO|FIDC-FIAGRO|FIP-FIAGRO|FIIM|FMP-FGTS)/i;
 async function telaEstruturados(){
   const idx=await indice();
-  app.innerHTML='<section class="painel"><div class="cab">Estruturados<span class="sub">FII · FIDC · FIP · Fiagro e afins</span></div><div class="corpo"><div class="fraco">Esses fundos não publicam cota diária na CVM. Reportam por documento periódico (mensal ou trimestral). Aqui aparecem o cadastro, o patrimônio declarado e a situação.</div></div></section><div id="es" style="display:grid;gap:10px"></div>';
+  app.innerHTML='<section class="painel"><div class="cab">Estruturados<span class="sub">FII · FIDC · FIP · Fiagro e afins</span></div><div class="corpo"><div class="fraco">Esses fundos não publicam cota diária na CVM. Reportam por documento periódico (mensal ou trimestral). Aqui aparecem o patrimônio, os cotistas e a rentabilidade dos últimos 12 meses informados nesses documentos (FII, FIDC e Fiagro), além do cadastro e da situação.</div></div></section><div id="es" style="display:grid;gap:10px"></div>';
   montarRanking($("#es"),{lista:idx.lista,fixo:f=>TIPOS_EST.test(f.tipo||"")||TIPOS_EST.test(f.classe||""),F:filtrosPadrao(),titulo:"Filtros"});
 }
 
@@ -575,7 +575,7 @@ async function telaFundo(r){
       ${k("Início do fundo",dt(f.inicio))}${k("Série na base",f.primeira?dt(f.primeira)+" → "+dt(f.ultima):"—")}${k("Pregões",f.pregoes?nf0.format(f.pregoes):"—")}
       ${k("PL",brl(f.pl))}${k("Taxa adm",f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"%")}${k("Subclasse",h(f.sub||"—"))}
     </div></div></section>
-  <div class="abas">${["desempenho","cadastro"].map(a=>'<button type="button" aria-pressed="'+(a===aba)+'" data-a="'+a+'">'+a+'</button>').join("")}</div>
+  <div class="abas">${["desempenho","carteira","cadastro"].map(a=>'<button type="button" aria-pressed="'+(a===aba)+'" data-a="'+a+'">'+a+'</button>').join("")}</div>
   <div id="fd-c" style="display:grid;gap:10px"></div>`;
   $("#fd-cmp").onclick=e=>{e.preventDefault();adicionarComparar([f.id]);};
   document.querySelector(".abas").onclick=e=>{const b=e.target.closest("button");if(b)ir(link({aba:b.dataset.a}));};
@@ -598,6 +598,8 @@ async function telaFundo(r){
     </tbody></table></div></div></section>`;
     return;
   }
+  if(aba==="carteira"){await abaCarteira(c,f,q.get("comp")||"",link);return;}
+  if(!f.d&&f.mensal){desempenhoMensal(c,f);return;}
   if(!f.d){c.innerHTML='<section class="painel aviso"><div class="cab">Informação não disponível</div><div class="corpo"><div>Este fundo não publica informe diário na CVM. '+(f.estruturado?"FIDC, FII, FIP e Fiagro reportam por documento periódico mensal. ":"")+'O patrimônio declarado no cadastro é '+brl(f.pl)+(f.data_pl?" ("+dt(f.data_pl)+")":"")+'. Veja a aba Cadastro.</div></div></section>';return;}
   const fim=ate||f.ultima;const ini=de||(jan==="max"?null:inicioJanela(fim,jan));
   const w=recorta(f.d,f.q,ini,fim);
@@ -631,6 +633,74 @@ async function telaFundo(r){
     for(let mm=1;mm<=12;mm++){const x=porMes.get(a+"-"+String(mm).padStart(2,"0"));if(x){ra*=1+x.r;if(x.c!=null)ca*=1+x.c;else tc=false;}t+='<td class="'+(x?cls(x.r):"")+'">'+(x?pct(x.r):"—")+'</td>';}
     t+='<td class="'+cls(ra-1)+'" style="font-weight:700">'+pct(ra-1)+'</td><td class="fraco">'+(tc?pct(ca-1):"—")+'</td></tr>';}
   $("#fd-m").innerHTML=t+'</tbody>';
+}
+
+
+// ================================================================ FICHA · CARTEIRA (CDA)
+async function abaCarteira(c,f,comp,link){
+  c.innerHTML='<div class="carregando">Carregando carteira…</div>';
+  let cart=null;try{cart=await getJson("c/"+f.cnpj+".json.gz");}catch(e){}
+  if(!cart||!cart.competencias||!cart.competencias.length){c.innerHTML='<section class="painel aviso"><div class="cab">Carteira não disponível</div><div class="corpo"><div>A CVM não tem composição de carteira (CDA) publicada para este fundo nas competências recentes. '+(f.estruturado?"Fundos estruturados (FII, FIDC, FIP) declaram ativos em documentos próprios.":"")+'</div></div></section>';return;}
+  const comps=cart.competencias.slice().sort((a,b)=>b.c.localeCompare(a.c));
+  const x=comps.find(k=>k.c===comp)||comps[0];
+  const sig=comps.filter(k=>k.sigilo);
+  const soma=x.pos.reduce((s,p)=>s+p[6],0)+(x.outros?x.outros.v:0);
+  const cob=x.pl?soma/x.pl:null;
+  const cats=new Map();x.pos.forEach(p=>cats.set(p[0],(cats.get(p[0])||0)+p[6]));if(x.outros)cats.set("Demais posições",(cats.get("Demais posições")||0)+x.outros.v);
+  (x.conf||[]).forEach(([cat,v])=>{if(v)cats.set(cat+" (sob sigilo)",(cats.get(cat+" (sob sigilo)")||0)+v);});
+  const catL=[...cats.entries()].sort((a,b)=>b[1]-a[1]);
+  const mm=k=>k.slice(5,7)+"/"+k.slice(0,4);
+  const k=(rot,val)=>'<div><div class="k">'+rot+'</div><div class="v">'+val+'</div></div>';
+  const IDX2=await indice();
+  c.innerHTML=`<section class="painel"><div class="cab">Carteira · ${mm(x.c)}<span class="linha"><span class="sub">Competência</span><select id="ct-c" aria-label="Competência">${comps.map(k2=>'<option value="'+k2.c+'"'+(k2.c===x.c?" selected":"")+'>'+mm(k2.c)+(k2.sigilo?" — sob sigilo":"")+'</option>').join("")}</select></span></div><div class="corpo">
+    ${sig.length?'<div style="color:var(--aviso)">⚠ '+sig.length+' de '+comps.length+' competências têm parte da composição sob sigilo. A CVM permite que o fundo omita temporariamente parte das posições, e nesses meses só o valor agregado por categoria é publicado: '+sig.map(k2=>mm(k2.c)).join(", ")+'</div>':""}
+    <div class="kv">${k("PL da competência",brl(x.pl))}${k("Cobertura das posições",cob==null?"—":nf2.format(cob*100)+"%")}${k("Sob sigilo",x.sigilo?"sim":"não")}${k("Posições",nf0.format(x.n))}</div>
+    <div class="tw"><table><thead><tr><th class="l">Categoria</th><th>Valor</th><th>% PL</th><th class="l" style="width:40%"></th></tr></thead><tbody>
+      ${catL.map(([cat,v])=>{const pc=x.pl?v/x.pl:null;return'<tr><td class="l">'+h(cat)+'</td><td>'+brl(v)+'</td><td>'+(pc==null?"—":nf2.format(pc*100)+"%")+'</td><td class="l"><div style="height:8px;background:var(--ciano);opacity:.7;width:'+Math.max(0,Math.min(100,(pc||0)*100)).toFixed(1)+'%"></div></td></tr>';}).join("")}
+    </tbody></table></div>
+  </div></section>
+  <section class="painel"><div class="cab">Posições<span class="sub">${x.outros?"maiores "+x.pos.length+" de "+nf0.format(x.n):nf0.format(x.n)+" posições"}</span></div><div class="tw"><table><thead><tr><th class="l">Categoria</th><th class="l">Ativo</th><th class="l">Emissor</th><th>Vencimento</th><th>Quantidade</th><th>Valor</th><th>% PL</th></tr></thead><tbody>
+    ${x.pos.map(p=>{const alvo=p[7]&&IDX2.porId.has(p[7])?p[7]:null;const nome=h(p[1])+(p[2]&&!alvo?' <span class="fraco">· '+h(p[2])+'</span>':"");return'<tr><td class="l fraco">'+h(p[0])+'</td><td class="l" style="white-space:normal;min-width:240px">'+(alvo?'<a href="#/fundo/'+alvo+'" style="color:var(--ciano)">'+nome+'</a>':nome)+'</td><td class="l fraco" style="white-space:normal">'+h(p[3]||"—")+'</td><td>'+dt(p[4])+'</td><td>'+(p[5]==null?"—":nf0.format(p[5]))+'</td><td>'+brl(p[6])+'</td><td>'+(x.pl?nf2.format(p[6]/x.pl*100)+"%":"—")+'</td></tr>';}).join("")}
+    ${x.outros?'<tr><td class="l fraco">—</td><td class="l fraco">Demais '+nf0.format(x.outros.n)+' posições</td><td></td><td></td><td></td><td>'+brl(x.outros.v)+'</td><td>'+(x.pl?nf2.format(x.outros.v/x.pl*100)+"%":"—")+'</td></tr>':""}
+    ${(x.conf||[]).map(([cat,v])=>'<tr><td class="l" style="color:var(--aviso)">Sob sigilo</td><td class="l">'+h(cat)+' (agregado)</td><td></td><td></td><td></td><td>'+brl(v)+'</td><td>'+(x.pl&&v?nf2.format(v/x.pl*100)+"%":"—")+'</td></tr>').join("")}
+    ${!x.pos.length&&!(x.conf||[]).length?'<tr><td colspan="7" class="l fraco">Sem posições nesta competência.</td></tr>':""}
+  </tbody></table></div></section>`;
+  $("#ct-c").onchange=e=>ir(link({comp:e.target.value}));
+}
+
+// ================================================================ FICHA · DESEMPENHO MENSAL (estruturados)
+function desempenhoMensal(c,f){
+  const M=f.mensal,n=M.m.length,d=M.m.map(x=>x+"-28");
+  const k=(rot,val)=>'<div><div class="k">'+rot+'</div><div class="v">'+val+'</div></div>';
+  const acum=[];let a=1,temR=false;for(let i=0;i<n;i++){const r=M.rent[i];if(r!=null){a*=1+r;temR=true;}acum.push(a-1);}
+  const ult=n-1,u12=M.rent.slice(-12),r12=u12.length===12&&u12.every(x=>x!=null)?u12.reduce((x,r)=>x*(1+r),1)-1:null;
+  const anoAt=M.m[ult].slice(0,4);let rAno=1,okAno=false;M.m.forEach((m,i)=>{if(m.startsWith(anoAt)&&M.rent[i]!=null){rAno*=1+M.rent[i];okAno=true;}});
+  const dy12=M.dy?M.dy.slice(-12).reduce((s,x)=>s+(x||0),0):null;
+  const cdi12=r12!=null?retCDI(isoDia(Math.round(Date.parse(M.m[Math.max(0,ult-12)]+"-28T00:00:00Z")/864e5)),isoDia(Math.round(Date.parse(M.m[ult]+"-28T00:00:00Z")/864e5))):null;
+  c.innerHTML=`<section class="painel"><div class="cab">Desempenho mensal<span class="sub">informe mensal da CVM · último mês ${h(M.m[ult].slice(5,7)+"/"+M.m[ult].slice(0,4))}</span></div><div class="corpo"><div class="kv">
+      ${k("Retorno 12M",'<span class="'+cls(r12)+'">'+pct(r12)+'</span>')}${k("Retorno no ano",'<span class="'+cls(okAno?rAno-1:null)+'">'+(okAno?pct(rAno-1):"—")+'</span>')}${k("% do CDI (12M)",r12!=null&&cdi12?nf0.format(r12/cdi12*100)+"% do CDI":"—")}
+      ${M.dy?k("Dividend yield 12M",pct(dy12,false)):""}${k("PL",brl(f.pl))}${k("Cotistas",f.cotistas==null?"—":nf0.format(f.cotistas))}
+      ${M.vpc?k("Valor patrimonial da cota",M.vpc[ult]==null?"—":"R$ "+nf2.format(M.vpc[ult])):""}${f.segmento?k("Segmento",h(f.segmento)):""}${f.mandato?k("Mandato",h(f.mandato)):""}${f.isin?k("ISIN",h(f.isin)):""}
+    </div><div class="fraco" style="font-size:11px">${f.tipo==="FIDC"?"Rentabilidade da série de maior patrimônio (normalmente a sênior), informada pelo administrador.":"Rentabilidade efetiva do mês informada pelo administrador (inclui rendimentos distribuídos)."}</div></div></section>
+  ${temR?'<section class="painel"><div class="cab">Rentabilidade acumulada (mensal)</div><div class="corpo"><div class="grafico" id="fm-g"></div></div></section>':""}
+  <section class="painel"><div class="cab">Patrimônio líquido</div><div class="corpo"><div class="grafico" id="fm-pl"></div></div></section>
+  <section class="painel"><div class="cab">Número de cotistas</div><div class="corpo"><div class="grafico" id="fm-ct"></div></div></section>
+  <section class="painel"><div class="cab">Retorno mês a mês</div><div class="tw"><table id="fm-t"></table></div></section>
+  ${M.series?'<section class="painel"><div class="cab">Rentabilidade por série</div><div class="tw"><table id="fm-s"></table></div></section>':""}`;
+  if(temR)grafico($("#fm-g"),[{nome:f.nome,cor:"var(--s1)",d,v:acum}],{titulo:"Rentabilidade acumulada"});
+  const fil=(arr)=>{const dd=[],vv=[];arr.forEach((x,i)=>{if(x!=null){dd.push(d[i]);vv.push(x);}});return{d:dd,v:vv};};
+  const pl=fil(M.pl),ct=fil(M.cot);
+  grafico($("#fm-pl"),[{nome:"PL",cor:"var(--pos)",d:pl.d,v:pl.v}],{fmt:brl,area:true,altura:180,margemEsq:82,titulo:"Patrimônio líquido"});
+  grafico($("#fm-ct"),[{nome:"Cotistas",cor:"var(--ciano)",d:ct.d,v:ct.v}],{fmt:y=>nf0.format(y),area:true,altura:160,margemEsq:70,titulo:"Cotistas"});
+  const anos=[...new Set(M.m.map(x=>x.slice(0,4)))].sort().reverse(),mp=new Map(M.m.map((m,i)=>[m,i]));
+  let t='<thead><tr><th class="l">Ano</th>'+MES.map(x=>'<th>'+x+'</th>').join("")+'<th>Ano %</th>'+(M.dy?'<th>DY ano</th>':"")+'</tr></thead><tbody>';
+  for(const an of anos){let ra=1,ok=false,dy=0;t+='<tr><td class="l" style="color:var(--ambar)">'+an+'</td>';
+    for(let mm=1;mm<=12;mm++){const i=mp.get(an+"-"+String(mm).padStart(2,"0"));const r=i==null?null:M.rent[i];if(r!=null){ra*=1+r;ok=true;}if(i!=null&&M.dy&&M.dy[i]!=null)dy+=M.dy[i];t+='<td class="'+cls(r)+'">'+(r==null?"—":pct(r))+'</td>';}
+    t+='<td class="'+cls(ok?ra-1:null)+'" style="font-weight:700">'+(ok?pct(ra-1):"—")+'</td>'+(M.dy?'<td class="fraco">'+pct(dy,false)+'</td>':"")+'</tr>';}
+  $("#fm-t").innerHTML=t+'</tbody>';
+  if(M.series){const ini=Math.max(0,n-12);let s2='<thead><tr><th class="l">Série</th>'+M.m.slice(ini).map(m=>'<th>'+m.slice(5,7)+'/'+m.slice(2,4)+'</th>').join("")+'</tr></thead><tbody>';
+    M.series.forEach(se=>{s2+='<tr><td class="l">'+h(se.nome)+'</td>'+se.rent.slice(ini).map(r=>'<td class="'+cls(r)+'">'+(r==null?"—":pct(r))+'</td>').join("")+'</tr>';});
+    $("#fm-s").innerHTML=s2+'</tbody>';}
 }
 
 // ================================================================ tema e status

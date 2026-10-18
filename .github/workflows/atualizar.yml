@@ -50,8 +50,12 @@ jobs:
           path: |
             cache/mensal
             cache/extrato
-          key: cvm-mensal-v3-${{ steps.data.outputs.mes }}
-          restore-keys: cvm-mensal-v3-
+            cache/estr
+            cache/cda
+          key: cvm-mensal-v4-${{ steps.data.outputs.mes }}
+          restore-keys: |
+            cvm-mensal-v4-
+            cvm-mensal-v3-
 
       - name: Coletar dados
         env:

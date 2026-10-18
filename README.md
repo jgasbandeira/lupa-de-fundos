@@ -5,8 +5,8 @@ Terminal de fundos de investimento brasileiros com dados públicos da CVM:
 - **F1 Compara**: até 8 fundos lado a lado, janelas de 1M a MAX ou datas livres, mais de 30 indicadores (Sharpe, Sortino, VaR, beta, alfa de Jensen…) e matriz de correlação.
 - **F2 Ranking**: todos os fundos com filtros por universo, classe, situação, série, PL e taxa; colunas ordenáveis; seleção vai para a comparação.
 - **F3 Gestores / F4 Administradores**: número de fundos e PL total; ao escolher um, a lista dos fundos dele.
-- **F5 Estruturados**: FII, FIDC, FIP, Fiagro e afins (cadastro e patrimônio declarado).
-- **Ficha do fundo**: desempenho, PL e cotistas, retorno mês a mês contra o CDI e cadastro completo.
+- **F5 Estruturados**: FII, FIDC, FIP, Fiagro e afins, com PL, cotistas e rentabilidade mensal (informes mensais da CVM).
+- **Ficha do fundo**: desempenho, PL e cotistas, retorno mês a mês contra o CDI, carteira (últimas 12 competências da CDA) e cadastro completo.
 
 Atalhos: F1 a F5 trocam de tela. Tema claro e escuro.
 
@@ -45,7 +45,8 @@ Aba **Actions** → **Atualizar dados e publicar site** → **Run workflow**.
 
 - Ibovespa vem do Yahoo Finance, que não é fonte oficial. Se falhar, o site mantém a série da publicação anterior.
 - Taxas vêm do extrato de informações da CVM (ou do cadastro antigo quando o extrato não tem). Podem faltar em fundos que não enviaram extrato.
-- FIIs, FIDCs e ETFs não estão no informe diário da CVM.
+- FIIs, FIDCs e Fiagros têm só dados mensais (informe mensal). FIPs aparecem com cadastro e PL declarado.
+- Na carteira, a CVM permite omitir posições temporariamente; nesses meses só o agregado por categoria é publicado.
 
 Rentabilidade passada não garante resultados futuros. Este site não é recomendação de investimento.
 

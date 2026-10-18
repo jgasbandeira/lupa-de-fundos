@@ -374,6 +374,243 @@ async function extratos() {
   log(`extrato: ${n.toLocaleString("pt-BR")} registros, ${extrato.size.toLocaleString("pt-BR")} CNPJs`);
 }
 
+
+// ------------------------------------------------------------------ estruturados (informes mensais)
+// mensal: CNPJ -> Map("AAAA-MM" -> {pl, cot, vpc, rent, dy, series:{nome: rent}})
+const mensal = new Map();
+const estrInfo = new Map(); // CNPJ -> {segmento, mandato, isin, gestao, gestor}
+const FII_BASE = CVM.replace(/\/FI$/, "/FII"), FIDC_BASE = CVM.replace(/\/FI$/, "/FIDC"), FIAGRO_BASE = CVM.replace(/\/FI$/, "/FIAGRO");
+function pontoMensal(cnpj, ym) {
+  let m = mensal.get(cnpj);
+  if (!m) { m = new Map(); mensal.set(cnpj, m); }
+  let o = m.get(ym);
+  if (!o) { o = {}; m.set(ym, o); }
+  return o;
+}
+const nOk = (v) => { const x = num(v); return isFinite(x) ? x : null; };
+
+async function estruturados() {
+  const anoAtual = hoje.getUTCFullYear(), mesAtual = hoje.getUTCMonth() + 1;
+  // FII: arquivos anuais (o do ano corrente e o anterior são revisados)
+  let nfii = 0;
+  for (let a = 2016; a <= anoAtual; a++) {
+    const dest = path.join(CACHE, "estr", `inf_mensal_fii_${a}.zip`);
+    try {
+      const st = await baixar(`${FII_BASE}/DOC/INF_MENSAL/DADOS/inf_mensal_fii_${a}.zip`, dest, { forcar: a >= anoAtual - 1 });
+      if (st === "404") continue;
+      const membros = await nomesNoZip(dest);
+      const versao = new Map();
+      const mc = membros.find((m) => /complemento/i.test(m)), mg = membros.find((m) => /geral/i.test(m));
+      if (mc) for await (const o of dicts(dest, mc)) {
+        const c = cnpj14(o.CNPJ_FUNDO_CLASSE || o.CNPJ_FUNDO), ym = (o.DATA_REFERENCIA || "").slice(0, 7);
+        if (!c || !ym) continue;
+        const v = +(o.VERSAO || 1), k = c + ym;
+        if ((versao.get(k) || 0) > v) continue;
+        versao.set(k, v);
+        const p = pontoMensal(c, ym);
+        p.pl = nOk(o.PATRIMONIO_LIQUIDO); p.cot = nOk(o.TOTAL_NUMERO_COTISTAS); p.vpc = nOk(o.VALOR_PATRIMONIAL_COTAS);
+        p.rent = nOk(o.PERCENTUAL_RENTABILIDADE_EFETIVA_MES); p.rentp = nOk(o.PERCENTUAL_RENTABILIDADE_PATRIMONIAL_MES); p.dy = nOk(o.PERCENTUAL_DIVIDEND_YIELD_MES);
+        nfii++;
+      }
+      if (mg) for await (const o of dicts(dest, mg)) {
+        const c = cnpj14(o.CNPJ_FUNDO_CLASSE || o.CNPJ_FUNDO);
+        if (!c) continue;
+        estrInfo.set(c, { segmento: desc(o.SEGMENTO_ATUACAO), mandato: desc(o.MANDATO), isin: desc(o.CODIGO_ISIN), gestao: desc(o.TIPO_GESTAO),
+          bolsa: sn(o.MERCADO_NEGOCIACAO_BOLSA), admin: desc(o.NOME_ADMINISTRADOR) });
+      }
+    } catch (e) { aviso(`FII ${a}: ${e.message}`); }
+  }
+  log(`FII: ${nfii.toLocaleString("pt-BR")} registros mensais`);
+
+  // Fiagro: arquivos mensais desde 2025
+  let nfg = 0;
+  for (let a = 2025, m = 1; a < anoAtual || (a === anoAtual && m <= mesAtual); m++) {
+    if (m === 13) { a++; m = 1; if (a > anoAtual) break; }
+    const am = `${a}${String(m).padStart(2, "0")}`;
+    const dest = path.join(CACHE, "estr", `inf_mensal_fiagro_${am}.zip`);
+    try {
+      const st = await baixar(`${FIAGRO_BASE}/DOC/INF_MENSAL/DADOS/inf_mensal_fiagro_${am}.zip`, dest, { forcar: a === anoAtual && m >= mesAtual - 2 });
+      if (st === "404") continue;
+      const membro = (await nomesNoZip(dest)).find((x) => /fiagro_\d{6}\.csv$/i.test(x));
+      if (!membro) continue;
+      for await (const o of dicts(dest, membro)) {
+        const c = cnpj14(o.CNPJ_CLASSE), ym = (o.DATA_REFERENCIA || "").slice(0, 7);
+        if (!c || !ym) continue;
+        const p = pontoMensal(c, ym);
+        p.pl = nOk(o.PATRIMONIO_LIQUIDO); p.cot = nOk(o.NUMERO_COTISTAS); p.vpc = nOk(o.VALOR_PATRIMONIAL_COTAS);
+        p.rent = nOk(o.RENTABILIDADE_EFETIVA_MES); p.rentp = nOk(o.RENTABILIDADE_PATRIMONIAL_MES); p.dy = nOk(o.DIVIDEND_YIELD_MES);
+        const g = desc(o.NOME_GESTOR);
+        if (g) estrInfo.set(c, { ...(estrInfo.get(c) || {}), gestor: g, admin: desc(o.NOME_ADMINISTRADOR) });
+        nfg++;
+      }
+    } catch (e) { aviso(`Fiagro ${am}: ${e.message}`); }
+  }
+  log(`Fiagro: ${nfg.toLocaleString("pt-BR")} registros mensais`);
+
+  // FIDC: arquivos mensais (DADOS) e anuais (DADOS/HIST) desde 2021. Rentabilidade em % ao mês por série.
+  let nfd = 0;
+  async function lerFidc(dest, filtroMes) {
+    const membros = await nomesNoZip(dest);
+    const ok = (ds) => !filtroMes || filtroMes.includes(ds.slice(0, 7));
+    for (const mb of membros.filter((x) => /tab_iv_/i.test(x))) for await (const o of dicts(dest, mb)) {
+      const c = cnpj14(o.CNPJ_FUNDO_CLASSE || o.CNPJ_FUNDO), ds = o.DT_COMPTC || "";
+      if (!c || !ok(ds)) continue;
+      pontoMensal(c, ds.slice(0, 7)).pl = nOk(o.TAB_IV_A_VL_PL); nfd++;
+    }
+    for (const mb of membros.filter((x) => /tab_x_1_\d{4,6}\.csv$/i.test(x))) for await (const o of dicts(dest, mb)) {
+      const c = cnpj14(o.CNPJ_FUNDO_CLASSE || o.CNPJ_FUNDO), ds = o.DT_COMPTC || "";
+      if (!c || !ok(ds)) continue;
+      const p = pontoMensal(c, ds.slice(0, 7)), n = nOk(o.TAB_X_NR_COTST);
+      if (n != null) p.cot = (p.cot || 0) + n;
+    }
+    const tam = new Map();
+    for (const mb of membros.filter((x) => /tab_x_2_\d{4,6}\.csv$/i.test(x))) for await (const o of dicts(dest, mb)) {
+      const c = cnpj14(o.CNPJ_FUNDO_CLASSE || o.CNPJ_FUNDO), ds = o.DT_COMPTC || "";
+      if (!c || !ok(ds)) continue;
+      const q = nOk(o.TAB_X_QT_COTA), v = nOk(o.TAB_X_VL_COTA), serie = desc(o.TAB_X_CLASSE_SERIE) || "única";
+      if (q != null && v != null) tam.set(c + ds.slice(0, 7) + "|" + serie, q * v);
+    }
+    for (const mb of membros.filter((x) => /tab_x_3_\d{4,6}\.csv$/i.test(x))) for await (const o of dicts(dest, mb)) {
+      const c = cnpj14(o.CNPJ_FUNDO_CLASSE || o.CNPJ_FUNDO), ds = o.DT_COMPTC || "";
+      if (!c || !ok(ds)) continue;
+      const r = nOk(o.TAB_X_VL_RENTAB_MES), serie = desc(o.TAB_X_CLASSE_SERIE) || "única", ym = ds.slice(0, 7);
+      if (r == null) continue;
+      const p = pontoMensal(c, ym);
+      p.series = p.series || {};
+      p.series[serie] = r / 100;
+      const t = tam.get(c + ym + "|" + serie) || 0;
+      if (t > (p._tam || -1)) { p._tam = t; p.rent = r / 100; p.serie_ref = serie; }
+    }
+  }
+  for (let a = 2021; a <= anoAtual; a++) {
+    const anual = path.join(CACHE, "estr", `inf_mensal_fidc_${a}.zip`);
+    const faltam = [];
+    for (let m = 1; m <= (a === anoAtual ? mesAtual : 12); m++) {
+      const am = `${a}${String(m).padStart(2, "0")}`;
+      const dest = path.join(CACHE, "estr", `inf_mensal_fidc_${am}.zip`);
+      try {
+        const st = await baixar(`${FIDC_BASE}/DOC/INF_MENSAL/DADOS/inf_mensal_fidc_${am}.zip`, dest, { forcar: a === anoAtual && m >= mesAtual - 2 });
+        if (st === "404") { faltam.push(`${a}-${String(m).padStart(2, "0")}`); continue; }
+        await lerFidc(dest);
+      } catch (e) { aviso(`FIDC ${am}: ${e.message}`); }
+    }
+    if (faltam.length && a < anoAtual) {
+      try {
+        const st = await baixar(`${FIDC_BASE}/DOC/INF_MENSAL/DADOS/HIST/inf_mensal_fidc_${a}.zip`, anual);
+        if (st !== "404") await lerFidc(anual, faltam);
+      } catch (e) { aviso(`FIDC ${a} (anual): ${e.message}`); }
+    }
+  }
+  log(`FIDC: ${nfd.toLocaleString("pt-BR")} registros mensais; estruturados com dados mensais: ${mensal.size.toLocaleString("pt-BR")}`);
+}
+
+// Série mensal compacta para a ficha e métricas para o ranking
+function serieMensal(cnpj) {
+  const m = mensal.get(cnpj);
+  if (!m || !m.size) return null;
+  const meses = [...m.keys()].sort();
+  const r6 = (x) => (x == null ? null : Math.round(x * 1e6) / 1e6);
+  const out = { m: meses, pl: [], cot: [], vpc: [], rent: [], dy: [] };
+  const nomesSeries = new Set();
+  for (const ym of meses) { const p = m.get(ym); if (p.series) Object.keys(p.series).forEach((k) => nomesSeries.add(k)); }
+  const series = [...nomesSeries].slice(0, 6);
+  if (series.length > 1) out.series = series.map((nome) => ({ nome, rent: [] }));
+  for (const ym of meses) {
+    const p = m.get(ym);
+    out.pl.push(p.pl != null ? Math.round(p.pl) : null); out.cot.push(p.cot ?? null); out.vpc.push(p.vpc != null ? +p.vpc.toPrecision(10) : null);
+    out.rent.push(r6(p.rent)); out.dy.push(r6(p.dy));
+    if (out.series) out.series.forEach((s) => s.rent.push(r6(p.series?.[s.nome])));
+  }
+  if (!out.dy.some((x) => x != null)) delete out.dy;
+  if (!out.vpc.some((x) => x != null)) delete out.vpc;
+  // ranking: retorno dos últimos 12 meses (precisa dos 12 meses), PL e cotistas mais recentes
+  let ret12 = null;
+  const ult = meses.length - 1;
+  if (meses.length >= 12) {
+    const ult12 = out.rent.slice(-12);
+    if (ult12.every((x) => x != null)) ret12 = Math.round((ult12.reduce((a, r) => a * (1 + r), 1) - 1) * 1e4) / 1e4;
+  }
+  let pl = null, cot = null, dataPl = null;
+  for (let i = ult; i >= 0 && i >= ult - 3; i--) if (out.pl[i] != null) { pl = out.pl[i]; dataPl = meses[i]; break; }
+  for (let i = ult; i >= 0 && i >= ult - 3; i--) if (out.cot[i] != null) { cot = out.cot[i]; break; }
+  return { serie: out, ret12, pl, cot, dataPl, ultimo: meses[ult] };
+}
+
+// ------------------------------------------------------------------ carteira (CDA)
+// Últimas competências da composição da carteira de cada fundo. Grava site/dados/c/<cnpj>.json.gz
+const CDA_MESES = +(process.env.CDA_MESES || 12), CDA_MAX_POS = 80;
+async function carteiras() {
+  const meses = [];
+  const d = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), 1));
+  for (let i = 0; i < CDA_MESES + 6; i++) { meses.push(`${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}`); d.setUTCMonth(d.getUTCMonth() - 1); }
+  const porFundo = new Map(); // cnpj -> [string JSON por competência]
+  let usados = 0, posTotal = 0;
+  for (const am of meses) {
+    if (usados >= CDA_MESES) break;
+    const dest = path.join(CACHE, "cda", `cda_fi_${am}.zip`);
+    let st;
+    try { st = await baixar(`${CVM}/DOC/CDA/DADOS/cda_fi_${am}.zip`, dest, { forcar: usados < 3 }); }
+    catch (e) { aviso(`CDA ${am}: ${e.message}`); continue; }
+    if (st === "404") continue;
+    usados++;
+    const membros = await nomesNoZip(dest);
+    const pl = new Map(), pos = new Map(), conf = new Map();
+    const add = (c, t) => { let a = pos.get(c); if (!a) { a = []; pos.set(c, a); } a.push(t); };
+    for (const mb of membros) {
+      const nome = mb.toLowerCase();
+      if (nome.includes("_pl_")) { for await (const o of dicts(dest, mb)) { const c = cnpj14(o.CNPJ_FUNDO_CLASSE || o.CNPJ_FUNDO); const v = nOk(o.VL_PATRIM_LIQ); if (c && v != null) pl.set(c, v); } continue; }
+      if (nome.includes("confid")) { for await (const o of dicts(dest, mb)) { const c = cnpj14(o.CNPJ_FUNDO_CLASSE || o.CNPJ_FUNDO); const v = nOk(o.VL_MERC_POS_FINAL); if (!c) continue; let a = conf.get(c); if (!a) { a = []; conf.set(c, a); } a.push([desc(o.TP_APLIC) || "—", v]); } continue; }
+      const blc = (nome.match(/blc_(\d)/) || [])[1] || (nome.includes("fie") ? "fie" : null);
+      if (!blc) continue;
+      for await (const o of dicts(dest, mb)) {
+        const c = cnpj14(o.CNPJ_FUNDO_CLASSE || o.CNPJ_FUNDO);
+        const v = nOk(o.VL_MERC_POS_FINAL);
+        if (!c || v == null || v === 0) continue;
+        if (blc === "fie" && o.VL_PATRIM_LIQ && !pl.has(c)) { const x = nOk(o.VL_PATRIM_LIQ); if (x != null) pl.set(c, x); }
+        let ativo, cod = desc(o.CD_ISIN) || desc(o.CD_ATIVO) || null, emissor = desc(o.EMISSOR) || null, cota = null;
+        switch (blc) {
+          case "1": ativo = desc(o.TP_TITPUB) || desc(o.TP_ATIVO); emissor = "TESOURO NACIONAL"; cod = desc(o.CD_ISIN) || desc(o.CD_SELIC); break;
+          case "2": ativo = desc(o.NM_FUNDO_CLASSE_SUBCLASSE_COTA) || "Cotas de fundo"; cota = cnpj14(o.CNPJ_FUNDO_CLASSE_COTA); cod = cota; emissor = null; break;
+          case "3": ativo = desc(o.DS_SWAP) || "Swap"; cod = desc(o.CD_SWAP); break;
+          case "4": ativo = [desc(o.CD_ATIVO), desc(o.DS_ATIVO)].filter(Boolean).join(" · ") || desc(o.TP_ATIVO); break;
+          case "5": ativo = desc(o.TP_ATIVO) || "Depósito"; break;
+          case "6": ativo = desc(o.TP_ATIVO) || "Crédito privado"; break;
+          case "7": ativo = desc(o.DS_ATIVO_EXTERIOR) || desc(o.EMISSOR) || desc(o.TP_ATIVO); cod = desc(o.CD_ATIVO_BV_MERC) || cod; break;
+          case "8": ativo = desc(o.DS_ATIVO) || desc(o.TP_ATIVO); break;
+          default: ativo = desc(o.DS_ATIVO) || desc(o.CD_ATIVO) || desc(o.TP_ATIVO);
+        }
+        add(c, [desc(o.TP_APLIC) || "—", ativo || "—", cod, emissor, dataOk(o.DT_VENC), nOk(o.QT_POS_FINAL), Math.round(v * 100) / 100, cota]);
+      }
+    }
+    const comp = `${am.slice(0, 4)}-${am.slice(4)}`;
+    for (const [c, lista] of pos) {
+      lista.sort((a, b) => Math.abs(b[6]) - Math.abs(a[6]));
+      const total = lista.reduce((s, x) => s + x[6], 0);
+      const top = lista.slice(0, CDA_MAX_POS), resto = lista.slice(CDA_MAX_POS);
+      const plc = pl.get(c) ?? null, cf = conf.get(c) || null;
+      const obj = { c: comp, pl: plc, n: lista.length, total: Math.round(total), sigilo: !!cf, conf: cf, pos: top,
+        outros: resto.length ? { n: resto.length, v: Math.round(resto.reduce((s, x) => s + x[6], 0)) } : null };
+      let a = porFundo.get(c); if (!a) { a = []; porFundo.set(c, a); }
+      a.push(JSON.stringify(obj));
+      posTotal += top.length;
+    }
+    for (const [c, cf] of conf) if (!pos.has(c)) {
+      let a = porFundo.get(c); if (!a) { a = []; porFundo.set(c, a); }
+      a.push(JSON.stringify({ c: comp, pl: pl.get(c) ?? null, n: 0, total: 0, sigilo: true, conf: cf, pos: [], outros: null }));
+    }
+    log(`CDA ${am}: ${pos.size.toLocaleString("pt-BR")} fundos, ${st}`);
+  }
+  fs.mkdirSync(path.join(SAIDA, "c"), { recursive: true });
+  let bytes = 0;
+  for (const [c, lista] of porFundo) {
+    const gz = zlib.gzipSync(`{"cnpj":"${c}","competencias":[${lista.join(",")}]}`, { level: 9 });
+    fs.writeFileSync(path.join(SAIDA, "c", `${c}.json.gz`), gz);
+    bytes += gz.length;
+  }
+  log(`carteiras: ${porFundo.size.toLocaleString("pt-BR")} fundos, ${usados} competências, ${posTotal.toLocaleString("pt-BR")} posições, ${Math.round(bytes / 1e6)} MB`);
+  return Math.round(bytes / 1e6);
+}
+
 // ------------------------------------------------------------------ índices
 async function anterior(nome) {
   if (!SITE_URL) return null;
@@ -512,6 +749,7 @@ async function main() {
   for (const f of fundos.values()) ordenar(f);
   await cadastro();
   await extratos();
+  await estruturados();
 
   // Subclasse nova sem histórico: encadeia com a série do CNPJ da classe antes da data de criação.
   for (const [, f] of fundos) {
@@ -561,7 +799,7 @@ async function main() {
   fs.mkdirSync(path.join(SAIDA, "f"), { recursive: true });
 
   const lista = [];
-  let bytes = 0, pontos = 0, soCadastro = 0;
+  let bytes = 0, pontos = 0, soCadastro = 0, comMensal = 0;
   const escrever = (id, obj) => {
     const gz = zlib.gzipSync(JSON.stringify(obj), { level: 9 });
     fs.writeFileSync(path.join(SAIDA, "f", `${id}.json.gz`), gz);
@@ -579,6 +817,7 @@ async function main() {
     const ativoInforme = temSerie && f.ult >= refDia - DIAS_ATIVO;
     let situacao = s.situacao || c.situacao || (temSerie ? "Sem cadastro (só no informe)" : null);
     const ativo = ativoInforme || (!temSerie && situacao === "Em funcionamento normal") ? 1 : 0;
+    // (a série mensal, quando existe, entra logo abaixo)
     const nome = s.nome && c.nome && !s.nome.toUpperCase().includes(c.nome.toUpperCase().slice(0, 20)) ? `${c.nome} · ${s.nome}` : s.nome || c.nome || (sub ? `${cnpj} · subclasse ${sub}` : `Fundo ${cnpj}`);
     const publico = s.publico || c.publico || e.publico || null;
     const condominio = s.condominio || c.condominio || e.condominio || null;
@@ -594,11 +833,14 @@ async function main() {
       for (let i = f.p.length - 1; i >= 0 && i >= f.p.length - 10; i--) if (isFinite(f.p[i])) { pl = f.p[i]; break; }
       for (let i = f.n.length - 1; i >= 0 && i >= f.n.length - 10; i--) if (isFinite(f.n[i])) { cot = f.n[i]; break; }
     }
+    const sm = !temSerie ? serieMensal(cnpj) : null;
+    const ei = estrInfo.get(cnpj) || {};
+    if (sm) { if (sm.pl != null) pl = sm.pl; if (sm.cot != null) cot = sm.cot; }
     if (pl == null && c.pl_cad != null && (!temSerie || !ativoInforme)) pl = c.pl_cad;
     const univ = (publico === "Público geral" ? 1 : 0) | ((condominio || "").toLowerCase().startsWith("aberto") ? 2 : 0) | (exclusivo ? 4 : 0);
     return {
       id, cnpj, sub: sub || null, nome: desc(nome), tipo, estruturado, classe: c.classe || (estruturado ? tipo : null), anbima: c.anbima || e.anbima || null,
-      situacao, ativo, gestor: c.gestor || null, admin: c.admin || null, inicio: s.inicio || c.inicio || null,
+      situacao, ativo, gestor: c.gestor || ei.gestor || null, admin: c.admin || ei.admin || null, inicio: s.inicio || c.inicio || null,
       condominio, exclusivo, publico, qualificado: publico ? publico !== "Público geral" : null, previdenciario: s.previdenciario ?? null,
       fic: c.fic ?? null, taxa_adm: taxaAdm, fonte_taxa: fonteTaxa, taxa_perf: perf, aplic_min: e.aplic_min ?? null,
       conversao: e.conversao ?? null, pagamento: e.pagamento ?? null, tipo_dia: e.tipo_dia || null, taxa_saida: e.taxa_saida ?? null,
@@ -606,8 +848,10 @@ async function main() {
       auditor: c.auditor || null, custodiante: c.custodiante || null, cancelamento: c.cancelamento || null,
       adaptacao175: c.adaptacao175 || null, registro555: c.registro555 || null, regime555: c.regime555 || null, regime175: c.regime175 || null,
       fundo_cnpj: c.fundo_cnpj && c.fundo_cnpj !== cnpj ? c.fundo_cnpj : null, fundo_nome: c.fundo_cnpj && c.fundo_cnpj !== cnpj ? c.fundo_nome : null,
-      indicador: c.indicador || null, pl: pl != null ? Math.round(pl) : null, data_pl: temSerie && pl != null ? iso(f.ult) : c.data_pl_cad || null,
-      cotistas: cot, serie: temSerie ? "D" : estruturado ? "M" : "",
+      indicador: c.indicador || null, pl: pl != null ? Math.round(pl) : null, data_pl: temSerie && pl != null ? iso(f.ult) : sm?.dataPl || c.data_pl_cad || null,
+      segmento: ei.segmento || null, mandato: ei.mandato || null, isin: ei.isin || null, gestao: ei.gestao || null, bolsa: ei.bolsa ?? null,
+      ret12_mensal: sm?.ret12 ?? null, ultimo_mes: sm?.ultimo || null, _mensal: sm?.serie || null,
+      cotistas: cot, serie: temSerie ? "D" : sm || estruturado ? "M" : "",
       primeira: temSerie ? iso(f.d[0]) : null, ultima: temSerie ? iso(f.ult) : null, pregoes: temSerie ? f.d.length : 0,
       encadeado: f?.encadeado || null, univ,
     };
@@ -618,6 +862,7 @@ async function main() {
     if (f.d.length < 2) continue;
     const info = montarInfo(id, f.cnpj, f.sub, f);
     const m = metricas12(f, fatorCdi, refDia);
+    delete info._mensal;
     escrever(id, { ...info, serie: serieLog(f.d, f.q), semanal: serieSemanal(f.d, f.p, f.n) });
     pontos += f.d.length;
     lista.push([id, info.nome, info.classe, info.situacao, info.ativo, info.serie, m?.ret ?? null, m?.vol ?? null, m?.sharpe ?? null,
@@ -629,9 +874,11 @@ async function main() {
     if (cnpjsComSerie.has(cnpj) || guardaChuva.has(cnpj)) continue;
     const info = montarInfo(cnpj, cnpj, "", null);
     if (!info.nome || info.nome.startsWith("Fundo ")) continue;
-    escrever(cnpj, info);
+    const { _mensal, ...resto } = info;
+    escrever(cnpj, _mensal ? { ...resto, mensal: _mensal } : resto);
     soCadastro++;
-    lista.push([cnpj, info.nome, info.classe, info.situacao, info.ativo, info.serie, null, null, null,
+    if (_mensal) comMensal++;
+    lista.push([cnpj, info.nome, info.classe, info.situacao, info.ativo, info.serie, info.ret12_mensal, null, null,
       info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima]);
   }
 
@@ -648,6 +895,12 @@ async function main() {
     inicio: iso([...fundos.values()].reduce((m, f) => (f.d.length ? Math.min(m, f.d[0]) : m), Infinity)), cotas: pontos,
     tamanho_mb: Math.round((bytes + idx.length) / 1e6), fontes: { cdi: indices.cdi?.fonte || null, ibov: indices.ibov?.fonte || null }, avisos,
   };
+  fundos.clear();
+  mensal.clear();
+  let mbCarteira = 0;
+  try { mbCarteira = await carteiras(); } catch (e) { aviso(`carteiras: ${e.message}`); }
+  meta.tamanho_mb += mbCarteira;
+  meta.com_mensal = comMensal;
   fs.writeFileSync(path.join(SAIDA, "meta.json"), JSON.stringify(meta, null, 1));
   log(`saída: ${lista.length} fundos (${comSerie} com série diária, ${soCadastro} só cadastro, ${meta.fundos_ativos} ativos), ${pontos.toLocaleString("pt-BR")} cotas, ${meta.tamanho_mb} MB, índice ${(idx.length / 1e6).toFixed(1)} MB`);
   if (meta.tamanho_mb > 950) aviso(`site com ${meta.tamanho_mb} MB, perto do limite de 1 GB do GitHub Pages`);
