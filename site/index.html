@@ -89,6 +89,7 @@ main{flex:1;display:grid;gap:10px;padding-block:10px;align-content:start}
 input[type=date],input[type=number],select{border:1px solid var(--borda2);background:var(--fundo);padding:3px 6px;font-size:12px;min-width:0}
 .btn{display:inline-block;border:1px solid var(--ambar);color:var(--ambar);background:transparent;padding:4px 10px;font-size:11px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase}
 .btn:hover{background:var(--ambar);color:#000}
+.exp .btn{padding:2px 8px}
 .btn[disabled]{opacity:.4;cursor:default;background:transparent;color:var(--ambar)}
 
 /* tabelas */
@@ -337,6 +338,22 @@ function busca(el,op){
   return inp;
 }
 
+
+// ================================================================ exportação (CSV)
+function salvarArquivo(nome,blob){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=nome;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},2000);}
+// CSV no padrão do Excel em português: separador ";", vírgula decimal, datas dd/mm/aaaa, UTF-8 com BOM.
+function exportarCSV(arquivo,cab,linhas){
+  const fmt=v=>{if(v==null||v===""||(typeof v==="number"&&!isFinite(v)))return"";
+    if(typeof v==="number"){let t=Math.abs(v)<1e-4&&v!==0?v.toFixed(12).replace(/0+$/,""):String(+v.toPrecision(12));return t.replace(".",",");}
+    const s2=String(v);if(/^\d{4}-\d{2}-\d{2}$/.test(s2))return dt(s2);return/[;"\r\n]/.test(s2)?'"'+s2.replace(/"/g,'""')+'"':s2;};
+  const txt="﻿"+[cab].concat(linhas).map(l=>l.map(fmt).join(";")).join("\r\n")+"\r\n";
+  salvarArquivo(arquivo,new Blob([txt],{type:"text/csv;charset=utf-8"}));
+}
+const sig8=x=>x==null||!isFinite(x)?null:+x.toPrecision(8);
+const nomeArquivo=s2=>(s2||"fundo").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"").slice(0,60).toLowerCase();
+function botoesExportar(id){return'<span class="linha exp" id="'+id+'"><button type="button" class="btn" data-x="csv">Exportar CSV</button></span>';}
+function ligaExportar(id,fn){const el=document.getElementById(id);if(!el)return;el.onclick=async e=>{const b=e.target.closest("button[data-x]");if(!b)return;const t=b.textContent;b.disabled=true;b.textContent="…";try{await fn();}catch(err){alert(err.message);}finally{b.disabled=false;b.textContent=t;}};}
+
 // ================================================================ rotas
 const app=$("#app");
 let rotaAtual="";
@@ -412,12 +429,19 @@ async function telaCompara(r){
   const rotJ=st.de||st.ate?"período":"janela "+(JANELAS.find(x=>x[0]===st.j)||[0,""])[1];
   let html="";
   if(semDiario.length)html+='<section class="painel aviso"><div class="cab">Informação não disponível</div><div class="corpo"><div><span style="color:var(--aviso)">Alguns fundos escolhidos não publicam informe diário.</span><br>'+semDiario.map(n=>"· "+h(n)).join("<br>")+'<br><br><span class="fraco">FIDC, FII, FIP e Fiagro reportam por documento periódico mensal, não por cota diária. O que existe deles (patrimônio, cotistas, situação) está na ficha de cada fundo e na tela </span><a href="#/estruturados" style="color:var(--ciano)">F5 ESTRUTURADOS</a>.</div></div></section>';
-  html+='<section class="painel"><div class="cab">Rentabilidade acumulada · '+h(rotJ)+'</div><div class="corpo"><div class="grafico" id="cmp-g"></div><div id="cmp-leg"></div></div></section>';
+  html+='<section class="painel"><div class="cab">Rentabilidade acumulada · '+h(rotJ)+(series.length?botoesExportar("cmp-x"):"")+'</div><div class="corpo"><div class="grafico" id="cmp-g"></div><div id="cmp-leg"></div></div></section>';
   if(series.length)html+='<section class="painel"><div class="cab">Tabela comparativa<span class="sub">melhor da linha em âmbar sublinhado</span></div><div class="tw"><table id="cmp-t"></table></div></section>';
   if(series.length>1)html+='<section class="painel"><div class="cab">Matriz de correlação<span class="sub">retornos diários das datas em que ambos publicaram</span></div><div class="tw"><table class="mapa" id="cmp-c"></table></div></section>';
   res.innerHTML=html;
   const todas=series.concat(bs);
   grafico($("#cmp-g"),todas,{titulo:"Rentabilidade acumulada"});$("#cmp-leg").innerHTML=legenda(todas);
+  ligaExportar("cmp-x",async()=>{
+    const datas=[...new Set(todas.flatMap(x=>x.d))].sort(),pc=x=>x==null?null:Math.round(x*1e8)/1e6;
+    const mapas=todas.map(x=>{const m2=new Map();x.d.forEach((y,i)=>m2.set(y,i));return m2;});
+    const cab=["Data"].concat(series.map(x=>"Cota · "+x.nome+" ("+cnpjFmt(x.f.cnpj)+")")).concat(todas.map(x=>"Acumulado (%) · "+x.nome));
+    const linhas=datas.map(y=>[y].concat(series.map((x,j2)=>{const i=mapas[j2].get(y);return i==null?null:sig8(x.bruto.v[i]);})).concat(todas.map((x,j2)=>{const i=mapas[j2].get(y);return i==null?null:pc(x.v[i]);})));
+    exportarCSV("comparacao_"+datas[0]+"_"+datas[datas.length-1]+".csv",cab,linhas);
+  });;
   if(!series.length)return;
   const L=[
     ["sec","Desempenho e risco"],
@@ -617,6 +641,7 @@ async function telaFundo(r){
   const rot=de||ate?"período":(JANELAS.find(x=>x[0]===jan)||[0,""])[1];
   c.innerHTML=`<section class="painel"><div class="corpo"><div class="linha"><span class="rotulo">Janela</span><div class="seg" id="fd-j">${JANELAS.map(([kk,l])=>'<button type="button" data-j="'+kk+'" aria-pressed="'+(!de&&!ate&&jan===kk)+'">'+l+'</button>').join("")}</div>
     <span class="rotulo" style="margin-left:10px">Período</span><input type="date" id="fd-de" value="${h(de)}" aria-label="Data inicial"> <span class="fraco">→</span> <input type="date" id="fd-ate" value="${h(ate)}" aria-label="Data final"></div></div></section>
+  <section class="painel"><div class="cab">Histórico de cotas<span class="linha"><select id="fd-xp" aria-label="Período da exportação"><option value="janela">Período do gráfico (${h(w.d.length?dt(w.d[0])+" → "+dt(w.d[w.d.length-1]):"—")})</option><option value="tudo">Histórico completo (${h(dt(f.d[0])+" → "+dt(f.d[f.d.length-1]))})</option></select>${botoesExportar("fd-x")}</span></div></section>
   <section class="painel"><div class="cab">Rentabilidade acumulada · ${h(rot)}</div><div class="corpo"><div class="grafico" id="fd-g"></div><div id="fd-leg"></div></div></section>
   <section class="painel"><div class="cab">Indicadores · ${h(rot)}${mt?" · "+dt(mt.ini)+" → "+dt(mt.fim)+" · "+nf0.format(mt.pregoes)+" pregões":""}</div><div class="corpo"><div class="kv">
     ${mt?[["Retorno",'<span class="'+cls(mt.ret)+'">'+pct(mt.ret)+'</span>'],["Anualizado",'<span class="'+cls(mt.ann)+'">'+pct(mt.ann)+'</span>'],["% do CDI",mt.pcdi==null||!isFinite(mt.pcdi)?"—":nf0.format(mt.pcdi*100).replace("-","−")+"% do CDI"],["Volatilidade",pct(mt.vol,false)],["Sharpe",num(mt.sharpe)],["Sortino",num(mt.sortino)],["Downside",pct(mt.downside,false)],["Drawdown",'<span class="'+cls(mt.mdd)+'">'+pct(mt.mdd)+'</span>'],["Data do vale",dt(mt.vale)],["VaR 95%",pct(mt.var95)],["Beta",num(mt.beta)],["Alfa (Jensen)",pct(mt.alfa)],["Cotistas",f.cotistas==null?"—":nf0.format(f.cotistas)]].map(([a,b])=>k(a,b)).join(""):'<div class="fraco">Sem cotas suficientes no período.</div>'}
@@ -626,6 +651,12 @@ async function telaFundo(r){
   <section class="painel"><div class="cab">Retorno mês a mês</div><div class="tw"><table id="fd-m"></table></div></section>`;
   $("#fd-j").onclick=e=>{const b=e.target.closest("button");if(b)ir(link({j:b.dataset.j,de:"",ate:""}));};
   $("#fd-de").onchange=e=>ir(link({de:e.target.value}));$("#fd-ate").onchange=e=>ir(link({ate:e.target.value}));
+  ligaExportar("fd-x",async()=>{
+    const tudo=$("#fd-xp").value==="tudo",dd=tudo?f.d:w.d,qq=tudo?f.q:w.v;if(!dd.length)throw new Error("Sem cotas no período.");
+    const c0=fatorCDI(dd[0]),pc=x=>x==null?null:Math.round(x*1e8)/1e6;
+    const linhas=dd.map((x,i)=>{const fc=fatorCDI(x);return[x,sig8(qq[i]),i?pc(qq[i]/qq[i-1]-1):null,pc(qq[i]/qq[0]-1),c0&&fc?pc(fc/c0-1):null];});
+    exportarCSV("cotas_"+f.cnpj+(f.sub?"_"+f.sub:"")+"_"+dd[0]+"_"+dd[dd.length-1]+".csv",["Data","Cota","Retorno diário (%)","Retorno acumulado (%)","CDI acumulado (%)"],linhas);
+  });
   const ss=[{nome:f.nome,cor:"var(--s1)",d:w.d,v:w.v.map(x=>x/w.v[0]-1)}];
   if(BENCH.cdi&&w.d.length){const b=recorta(BENCH.cdi.d,BENCH.cdi.v,w.d[0],fim);if(b.d.length>1)ss.push({nome:"CDI",cor:"var(--bench)",bench:true,d:b.d,v:b.v.map(x=>x/b.v[0]-1)});}
   grafico($("#fd-g"),ss,{titulo:"Rentabilidade acumulada"});$("#fd-leg").innerHTML=legenda(ss);
@@ -691,12 +722,19 @@ function desempenhoMensal(c,f){
       ${M.dy?k("Dividend yield 12M",pct(dy12,false)):""}${k("PL",brl(f.pl))}${k("Cotistas",f.cotistas==null?"—":nf0.format(f.cotistas))}
       ${M.vpc?k("Valor patrimonial da cota",M.vpc[ult]==null?"—":"R$ "+nf2.format(M.vpc[ult])):""}${f.segmento?k("Segmento",h(f.segmento)):""}${f.mandato?k("Mandato",h(f.mandato)):""}${f.isin?k("ISIN",h(f.isin)):""}
     </div><div class="fraco" style="font-size:11px">${f.tipo==="FIDC"?"Rentabilidade da série de maior patrimônio (normalmente a sênior), informada pelo administrador.":"Rentabilidade efetiva do mês informada pelo administrador (inclui rendimentos distribuídos)."}</div></div></section>
+  <section class="painel"><div class="cab">Histórico mensal${botoesExportar("fm-x")}</div></section>
   ${temR?'<section class="painel"><div class="cab">Rentabilidade acumulada (mensal)</div><div class="corpo"><div class="grafico" id="fm-g"></div></div></section>':""}
   <section class="painel"><div class="cab">Patrimônio líquido</div><div class="corpo"><div class="grafico" id="fm-pl"></div></div></section>
   <section class="painel"><div class="cab">Número de cotistas</div><div class="corpo"><div class="grafico" id="fm-ct"></div></div></section>
   <section class="painel"><div class="cab">Retorno mês a mês</div><div class="tw"><table id="fm-t"></table></div></section>
   ${M.series?'<section class="painel"><div class="cab">Rentabilidade por série</div><div class="tw"><table id="fm-s"></table></div></section>':""}`;
   if(temR)grafico($("#fm-g"),[{nome:f.nome,cor:"var(--s1)",d,v:acum}],{titulo:"Rentabilidade acumulada"});
+  ligaExportar("fm-x",async()=>{
+    const pc=x=>x==null?null:Math.round(x*1e8)/1e6;
+    const cab=["Mês","Patrimônio líquido (R$)","Cotistas","Valor patrimonial da cota (R$)","Rentabilidade do mês (%)","Rentabilidade acumulada (%)"].concat(M.dy?["Dividend yield do mês (%)"]:[]).concat(M.series?M.series.map(x=>"Rentab. "+x.nome+" (%)"):[]);
+    const linhas=M.m.map((m,i)=>[m.slice(5,7)+"/"+m.slice(0,4),M.pl[i],M.cot[i],M.vpc?M.vpc[i]:null,pc(M.rent[i]),M.rent[i]==null?null:pc(acum[i])].concat(M.dy?[pc(M.dy[i])]:[]).concat(M.series?M.series.map(x=>pc(x.rent[i])):[]));
+    exportarCSV("mensal_"+f.cnpj+"_"+M.m[0]+"_"+M.m[n-1]+".csv",cab,linhas);
+  });;
   const fil=(arr)=>{const dd=[],vv=[];arr.forEach((x,i)=>{if(x!=null){dd.push(d[i]);vv.push(x);}});return{d:dd,v:vv};};
   const pl=fil(M.pl),ct=fil(M.cot);
   grafico($("#fm-pl"),[{nome:"PL",cor:"var(--pos)",d:pl.d,v:pl.v}],{fmt:brl,area:true,altura:180,margemEsq:82,titulo:"Patrimônio líquido"});
