@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-tema="claro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -755,7 +755,7 @@ const cancBox=$("#st-canc");cancBox.checked=incluirCancelados;
 cancBox.onchange=()=>{incluirCancelados=cancBox.checked;ls("lupa-canc",incluirCancelados?"1":"0");render();};
 const temaBtn=$("#tema");
 function aplicaTema(t){if(t==="claro")document.documentElement.setAttribute("data-tema","claro");else document.documentElement.removeAttribute("data-tema");temaBtn.textContent=t==="claro"?"Tema escuro":"Tema claro";}
-aplicaTema(ls("lupa-tema")||"escuro");
+aplicaTema(ls("lupa-tema")||"claro");
 temaBtn.onclick=()=>{const t=document.documentElement.getAttribute("data-tema")==="claro"?"escuro":"claro";ls("lupa-tema",t);aplicaTema(t);render();};
 meta().then(m=>{$("#st-dados").textContent="Dados até "+dt(m.ultima_cota);$("#st-series").textContent=nf0.format(m.fundos)+" fundos · "+nf0.format(m.com_serie_diaria||0)+" séries diárias";
   $("#rodape").textContent="Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI: "+(m.fontes&&m.fontes.cdi||"—")+" · Ibovespa: "+(m.fontes&&m.fontes.ibov||"—")+" · Atualizado em "+new Date(m.atualizado).toLocaleString("pt-BR")+" · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento";}).catch(()=>{});
