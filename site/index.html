@@ -498,7 +498,7 @@ function aplicaFiltros(lista,F,fixo){
 function ordena(lista,F){const k=F.ord,d=F.dir;return lista.slice().sort((a,b)=>{const x=a[k],y=b[k];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*d;});}
 
 function montarRanking(el,op){
-  const F=op.F;if(!UNIVERSOS.some(u=>u[0]===F.u))F.u="todos";const sel=new Set();let mostrar=200;
+  const F=op.F;if(!UNIVERSOS.some(u=>u[0]===F.u))F.u="todos";F.taxamax="";const sel=new Set();let mostrar=200;
   const base=op.fixo?op.lista.filter(op.fixo):op.lista;
   const classes=[...new Set(base.map(f=>f.classe||f.tipo).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
   const sitCont=new Map();base.forEach(f=>{if(f.situacao)sitCont.set(f.situacao,(sitCont.get(f.situacao)||0)+1);});
@@ -512,20 +512,19 @@ function montarRanking(el,op){
       <div><div class="rotulo">Situação</div><select id="rk-s"><option value="">todas</option>${sits.map(([s,n])=>'<option value="'+h(s)+'">'+h(s)+' ('+nf0.format(n)+')</option>').join("")}</select></div>
       <div><div class="rotulo">Série</div><div class="seg" id="rk-se"><button type="button" data-s="todas">Todas</button><button type="button" data-s="diaria">Diária</button><button type="button" data-s="mensal">Só mensal</button></div></div>
       <div><div class="rotulo">PL mínimo (R$)</div><input type="number" id="rk-pl" min="0" step="1000000" placeholder="0" style="width:130px"></div>
-      <div><div class="rotulo">Taxa adm. máx (%)</div><input type="number" id="rk-tx" min="0" step="0.1" placeholder="—" style="width:110px"></div>
       <div style="margin-left:auto;text-align:right"><div class="rotulo">População</div><div style="color:var(--ambar);font-size:16px;font-weight:700" id="rk-n">—</div><div class="fraco" style="font-size:10px" id="rk-nd"></div></div>
     </div>
   </div></section>
   <section class="painel"><div class="cab">Ranking<span class="linha"><span class="sub" id="rk-sel">0 selecionados</span><button class="btn" id="rk-cmp" disabled>Comparar ▸</button></span></div>
     <div class="tw"><table id="rk-t"></table></div><div class="corpo" id="rk-mais" hidden><div><button class="btn" id="rk-mais-b">Mostrar mais</button></div></div></section>`;
-  const q=$("#rk-q",el);q.value=F.q;$("#rk-c",el).value=F.classe;$("#rk-s",el).value=F.sit;$("#rk-pl",el).value=F.plmin;$("#rk-tx",el).value=F.taxamax;
+  const q=$("#rk-q",el);q.value=F.q;$("#rk-c",el).value=F.classe;$("#rk-s",el).value=F.sit;$("#rk-pl",el).value=F.plmin;
   const botoes=()=>{$("#rk-u",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.u===F.u));$("#rk-se",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.s===F.serie));};
   let tm;const muda=()=>{mostrar=200;op.aoMudar&&op.aoMudar(F);desenha();};
   q.oninput=()=>{F.q=q.value;clearTimeout(tm);tm=setTimeout(muda,150);};
   $("#rk-u",el).onclick=e=>{const b=e.target.closest("button");if(b){F.u=b.dataset.u;botoes();muda();}};
   $("#rk-se",el).onclick=e=>{const b=e.target.closest("button");if(b){F.serie=b.dataset.s;botoes();muda();}};
   $("#rk-c",el).onchange=e=>{F.classe=e.target.value;muda();};$("#rk-s",el).onchange=e=>{F.sit=e.target.value;muda();};
-  $("#rk-pl",el).onchange=e=>{F.plmin=e.target.value;muda();};$("#rk-tx",el).onchange=e=>{F.taxamax=e.target.value;muda();};
+  $("#rk-pl",el).onchange=e=>{F.plmin=e.target.value;muda();};
   $("#rk-mais-b",el).onclick=()=>{mostrar+=300;desenha();};
   $("#rk-cmp",el).onclick=()=>adicionarComparar([...sel]);
   botoes();
