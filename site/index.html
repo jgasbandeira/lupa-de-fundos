@@ -188,6 +188,15 @@ const MES=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","de
 const dtc=s=>MES[+s.slice(5,7)-1]+"/"+s.slice(2,4);
 const cnpjFmt=c=>(c||"").replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,"$1.$2.$3/$4-$5");
 const norm=t=>(t||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+// Busca por palavras: uma palavra sozinha casa em qualquer parte do nome; com espaço, cada palavra digitada
+// tem de ser uma palavra inteira do nome ("xp" não casa com "flexprev"). A última, ainda sendo digitada, casa pelo começo.
+function casaNome(q){
+  const t=norm(q),ws=t.split(/[^a-z0-9]+/).filter(Boolean);if(!ws.length)return()=>true;
+  if(ws.length===1&&!/\s$/.test(t))return n=>n.includes(ws[0]);
+  const fim=/[^a-z0-9]$/.test(t);
+  const res=ws.map((w,i)=>new RegExp("(^|[^a-z0-9])"+w+(i===ws.length-1&&!fim?"":"(?![a-z0-9])")));
+  return n=>res.every(r=>r.test(n));
+}
 const cls=x=>x==null||!isFinite(x)?"":x>0?"pos":x<0?"neg":"";
 function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v);}catch(e){return null;}}
 
@@ -402,7 +411,7 @@ function busca(el,op){
     const q=inp.value.trim();if(!q){drop.hidden=true;return;}
     const idx=await indice();const dig=q.replace(/[.\-\/\s]/g,"");let r;
     if(/^\d{3,}$/.test(dig))r=idx.lista.filter(f=>f.cnpj.startsWith(dig));
-    else{const tk=norm(q).split(/\s+/).filter(Boolean);r=idx.lista.filter(f=>tk.every(t=>f.bn.includes(t)));}
+    else{const ok=casaNome(q);r=idx.lista.filter(f=>ok(f.bn));}
     r=r.filter(visivel);if(op.filtro)r=r.filter(op.filtro);res=r.slice(0,40);foco=-1;
     drop.innerHTML=res.length?res.map((f,i)=>'<button type="button" data-i="'+i+'"><span class="n">'+h(f.nome)+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</span><span class="c">'+cnpjFmt(f.cnpj)+'</span><span class="t">'+h(f.classe||f.tipo||"—")+'</span></button>').join(""):'<div class="vazio">Nenhum fundo encontrado.</div>';
     drop.hidden=false;
@@ -690,11 +699,11 @@ const UNIVERSOS=[["todos","Todos",0],["aberto","Aberto",2],["exclusivo","Exclusi
 const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["situacao","Situação","l"],["ret12","Ret 12M"],["vol12","Vol"],["sharpe12","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["gestor","Gestor","l"],["inicio","Início"]];
 function filtrosPadrao(){return{q:"",u:"todos",classe:"",sit:"",serie:"todas",plmin:"",taxamax:"",ord:"pl",dir:-1};}
 function aplicaFiltros(lista,F,fixo){
-  const tk=norm(F.q).split(/\s+/).filter(Boolean),dig=F.q.replace(/[.\-\/\s]/g,"");const um=(UNIVERSOS.find(u=>u[0]===F.u)||UNIVERSOS[0])[2];
+  const tk=norm(F.q).split(/\s+/).filter(Boolean),okN=casaNome(F.q),dig=F.q.replace(/[.\-\/\s]/g,"");const um=(UNIVERSOS.find(u=>u[0]===F.u)||UNIVERSOS[0])[2];
   const plmin=F.plmin===""?null:+F.plmin,tmax=F.taxamax===""?null:+F.taxamax;
   return lista.filter(f=>{
     if(fixo&&!fixo(f))return false;
-    if(tk.length){if(/^\d{3,}$/.test(dig)){if(!f.cnpj.startsWith(dig))return false;}else if(!tk.every(t=>f.bn.includes(t)))return false;}
+    if(tk.length){if(/^\d{3,}$/.test(dig)){if(!f.cnpj.startsWith(dig))return false;}else if(!okN(f.bn))return false;}
     if(um&&!(f.univ&um))return false;
     if(F.classe&&(f.classe||f.tipo)!==F.classe)return false;
     if(F.sit&&f.situacao!==F.sit)return false;
@@ -779,8 +788,8 @@ async function telaGrupos(r,campo){
   <section class="painel"><div class="cab">${nomeTela} · busca<span class="sub">${nf0.format(lista.length)} ${nomeTela.toLowerCase()}</span></div><div class="corpo"><div class="prompt"><input type="search" id="gr-q" placeholder="Buscar ${nomeTela.toLowerCase()} por nome…" aria-label="Buscar"></div></div>
     <div class="tw lista"><table id="gr-t"></table></div></section><div id="gr-f" style="display:grid;gap:10px"></div>`;
   function desenha(){
-    const tk=norm(st.q).split(/\s+/).filter(Boolean);
-    const l=lista.filter(g=>!tk.length||tk.every(t=>norm(g.nome).includes(t))).sort((a,b)=>{const x=a[st.ord],y=b[st.ord];return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*st.dir;}).slice(0,500);
+    const tk=norm(st.q).split(/\s+/).filter(Boolean),okG=casaNome(st.q);
+    const l=lista.filter(g=>!tk.length||okG(norm(g.nome))).sort((a,b)=>{const x=a[st.ord],y=b[st.ord];return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*st.dir;}).slice(0,500);
     const hd=(k,lb,a)=>'<th class="ord '+(a||"")+'" data-k="'+k+'">'+lb+(st.ord===k?(st.dir<0?" ▼":" ▲"):"")+'</th>';
     $("#gr-t").innerHTML='<thead><tr>'+hd("nome",sing,"l")+hd("n","Fundos")+hd("at","Ativos")+hd("pl","PL total")+'</tr></thead><tbody>'+
       l.map(g=>'<tr class="'+(g.nome===escolhido?"sel":"")+'" data-g="'+h(g.nome)+'" style="cursor:pointer"><td class="l">'+h(g.nome)+'</td><td>'+nf0.format(g.n)+'</td><td>'+nf0.format(g.at)+'</td><td>'+brl(g.pl)+'</td></tr>').join("")+'</tbody>';
