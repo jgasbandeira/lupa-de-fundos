@@ -61,7 +61,7 @@ jobs:
         env:
           INICIO: "2000"
           NODE_OPTIONS: --max-old-space-size=13000
-          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+          SITE_URL: https://comparadorfundos.com.br
           SITE_SENHA: ${{ secrets.SITE_SENHA }}
         run: |
           set -o pipefail
