@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Lupa de Fundos</title>
+<title>Comparador de Fundos</title>
 <meta name="description" content="Compare fundos de investimento brasileiros com dados públicos da CVM: rentabilidade, risco, ranking, gestores, administradores e ficha completa.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
@@ -36,6 +36,12 @@ button,input,select{font:inherit;color:inherit}
 /* topo */
 .topo{background:var(--sup);border-bottom:1px solid var(--borda);position:sticky;top:0;z-index:20}
 .topo .linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-block:7px}
+body.bloqueado #nav,body.bloqueado .status .canc{visibility:hidden}
+body.bloqueado #sair{display:none}
+#sair:not([hidden])+#tema{margin-left:6px}
+.login{max-width:420px;margin:40px auto;width:100%}
+.login form{display:grid;gap:10px}
+.login input[type=password]{border:1px solid var(--borda2);background:var(--fundo);padding:8px;font:inherit;color:var(--texto)}
 .logo{color:var(--ambar);font-weight:700;letter-spacing:.06em;margin-right:6px;white-space:nowrap}
 .logo b{color:var(--texto);font-weight:700}
 .nav{display:flex;gap:4px;flex-wrap:wrap}
@@ -154,7 +160,7 @@ footer{border-top:1px solid var(--borda);font-size:10px;color:var(--fraco);paddi
 <body>
 <header class="topo">
   <div class="wrap linha">
-    <a class="logo" href="#/">LUPA<b>·</b>FUNDOS</a>
+    <a class="logo" href="#/">COMPARADOR<b>·</b>DE FUNDOS</a>
     <nav class="nav" id="nav">
       <a href="#/painel" data-r="painel">F1 Painel</a>
       <a href="#/ranking" data-r="ranking">F2 Ranking</a>
@@ -162,7 +168,7 @@ footer{border-top:1px solid var(--borda);font-size:10px;color:var(--fraco);paddi
       <a href="#/gestores" data-r="gestores">F4 Gestores e administradores</a>
       <a href="#/estruturados" data-r="estruturados">F5 Estruturados</a>
     </nav>
-    <button class="tema" id="tema" type="button">Tema claro</button>
+    <button class="tema" id="sair" type="button" hidden title="Esquecer a senha neste navegador">Sair</button><button class="tema" id="tema" type="button">Tema claro</button>
   </div>
   <div class="wrap status"><span class="fonte">CVM · B3 · ANBIMA · BCB</span><span id="st-dados">Dados até —</span><label class="canc"><input type="checkbox" id="st-canc"> Incluir fundos cancelados</label><span class="dir" id="st-series">—</span></div>
 </header>
@@ -209,13 +215,42 @@ async function listaVisivel(){const idx=await indice();return incluirCancelados?
 
 // ================================================================ dados
 const DADOS="dados/";
+// ================================================================ acesso com senha
+// Com senha, os arquivos de dados vêm cifrados (AES-GCM). A chave sai da senha (PBKDF2) e fica só neste navegador.
+let CHAVE=null,ACESSO=null;
+const b64buf=s=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;};
+const bufb64=u=>{let s="";for(const x of new Uint8Array(u))s+=String.fromCharCode(x);return btoa(s);};
+async function decifra(buf){return new Uint8Array(await crypto.subtle.decrypt({name:"AES-GCM",iv:buf.slice(0,12)},CHAVE,buf.slice(12)));}
+async function confere(cfg){try{return new TextDecoder().decode(await decifra(b64buf(cfg.teste)))==="comparador-de-fundos";}catch(e){return false;}}
+async function derivar(senha,cfg){const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(senha),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt:b64buf(cfg.sal),iterations:cfg.iter,hash:"SHA-256"},base,{name:"AES-GCM",length:256},true,["decrypt"]);}
+async function chaveGuardada(cfg){for(const st of[sessionStorage,localStorage]){try{const x=JSON.parse(st.getItem("cdf-chave")||"null");if(x&&x.sal===cfg.sal){CHAVE=await crypto.subtle.importKey("raw",b64buf(x.k),"AES-GCM",true,["decrypt"]);if(await confere(cfg))return true;}}catch(e){}}CHAVE=null;return false;}
+function sair(){try{sessionStorage.removeItem("cdf-chave");localStorage.removeItem("cdf-chave");}catch(e){}location.reload();}
+async function acesso(){
+  let cfg=null;try{const r=await fetch(DADOS+"chave.json",{cache:"no-cache"});if(r.ok)cfg=await r.json();}catch(e){}
+  if(!cfg)return;
+  ACESSO=cfg;const bs=document.getElementById("sair");if(bs){bs.hidden=false;bs.onclick=sair;}
+  if(!crypto.subtle){$("#app").innerHTML='<section class="painel aviso"><div class="cab">Acesso</div><div class="corpo">Abra o site pelo endereço https para entrar.</div></section>';throw new Error("sem https");}
+  if(await chaveGuardada(cfg))return;
+  document.body.classList.add("bloqueado");
+  $("#app").innerHTML=`<section class="painel login"><div class="cab">Acesso restrito</div><div class="corpo"><form id="lg" autocomplete="on">
+    <label class="rotulo" for="lg-s">Senha</label><input type="password" id="lg-s" autocomplete="current-password" required autofocus>
+    <label class="canc"><input type="checkbox" id="lg-l" checked> Lembrar neste computador</label>
+    <button class="btn" type="submit" id="lg-b">Entrar ▸</button><div id="lg-e" class="neg" role="alert"></div></form></div></section>`;
+  $("#lg-s").focus();
+  await new Promise(ok=>{$("#lg").onsubmit=async e=>{e.preventDefault();const b=$("#lg-b");b.disabled=true;b.textContent="Verificando…";$("#lg-e").textContent="";
+    try{CHAVE=await derivar($("#lg-s").value,cfg);if(await confere(cfg)){const k=bufb64(await crypto.subtle.exportKey("raw",CHAVE));try{($("#lg-l").checked?localStorage:sessionStorage).setItem("cdf-chave",JSON.stringify({sal:cfg.sal,k}));}catch(e2){}ok();return;}}catch(e1){}
+    CHAVE=null;$("#lg-e").textContent="Senha incorreta.";b.disabled=false;b.textContent="Entrar ▸";$("#lg-s").select();};});
+  document.body.classList.remove("bloqueado");
+}
 const cacheJson=new Map();
 async function lerResposta(r,nome){
   if(!r.ok)throw new Error(r.status===404?"NAO_ENCONTRADO":r.status===403?"Acesso aos dados bloqueado (403). Se você está numa rede corporativa, o firewall pode estar bloqueando o site.":"Falha ao carregar dados ("+r.status+")");
   if(nome.endsWith(".txt")){
     // JSON compactado (gzip) em base64: formato que passa por firewalls corporativos
     if(typeof DecompressionStream==="undefined")throw new Error("Seu navegador está desatualizado. Atualize o Chrome, Edge ou Firefox para usar o site.");
-    const b64=(await r.text()).trim(),bin=atob(b64),buf=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+    const b64=(await r.text()).trim(),bin=atob(b64);let buf=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+    if(CHAVE)buf=await decifra(buf);
     return JSON.parse(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).text());
   }
   if(!nome.endsWith(".gz"))return r.json();
@@ -250,7 +285,7 @@ async function ficha(id){
 let BENCH=null;
 async function benchs(){
   if(BENCH)return BENCH;
-  const j=await getJson("indices.json");const B={fontes:{}};
+  const j=await getJson("indices.txt");const B={fontes:{}};
   if(j.cdi){const e=expandeQ(j.cdi);const fat=[];let acc=1;for(let i=0;i<e.d.length;i++){fat.push(acc);acc*=1+e.v[i]/100;}B.cdi={d:e.d,v:fat,ultimo:acc};B.fontes.cdi=j.cdi.fonte;}
   if(j.ibov){const e=expandeQ(j.ibov);B.ibov={d:e.d,v:e.v};B.fontes.ibov=j.ibov.fonte;}
   B.lista=[];
@@ -552,7 +587,7 @@ async function telaPainel(r){
   <section class="painel"><div class="cab">Peer groups · ${PAINEL.cestas.length}<button type="button" class="btn" id="pn-nova">+ Novo peer group</button></div>
     <div class="corpo" id="pn-cestas"></div></section>`;
   // exportar / importar
-  $("#pn-exp").onclick=()=>salvarArquivo("lupa-painel.json",new Blob([JSON.stringify({versao:1,exportado:new Date().toISOString(),fav:PAINEL.fav,cestas:PAINEL.cestas},null,1)],{type:"application/json"}));
+  $("#pn-exp").onclick=()=>salvarArquivo("comparador-painel.json",new Blob([JSON.stringify({versao:1,exportado:new Date().toISOString(),fav:PAINEL.fav,cestas:PAINEL.cestas},null,1)],{type:"application/json"}));
   $("#pn-imp").onchange=async e=>{const arq=e.target.files[0];if(!arq)return;try{const x=JSON.parse(await arq.text());let nf=0,nc=0;
     (x.fav||[]).forEach(id=>{if(!PAINEL.fav.includes(id)){PAINEL.fav.push(id);nf++;}});
     (x.cestas||[]).forEach(c=>{if(!c||!Array.isArray(c.fundos))return;if(!PAINEL.cestas.some(y=>y.id===c.id)){PAINEL.cestas.push({id:c.id||novoId(),nome:c.nome||"Peer group",fundos:c.fundos,criada:c.criada||""});nc++;}});
@@ -599,7 +634,9 @@ const app=$("#app");
 let rotaAtual="";
 function rota(){const hsh=location.hash.replace(/^#\/?/,"");const i=hsh.indexOf("?");const cam=i<0?hsh:hsh.slice(0,i),qs=i<0?"":hsh.slice(i+1);const p=cam.split("/").map(decodeURIComponent);return{nome:p[0]||(temPainel()?"painel":"ranking"),arg:p.slice(1).join("/"),q:new URLSearchParams(qs)};}
 function ir(x){if(location.hash!==x)location.hash=x;else render();}
+let liberado=false;
 async function render(){
+  if(!liberado)return;
   const r=rota();const mudouTela=r.nome!==rotaAtual;rotaAtual=r.nome;
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.r===r.nome||(a.dataset.r==="gestores"&&r.nome==="administradores")));
   if(mudouTela)window.scrollTo(0,0);
@@ -1039,7 +1076,7 @@ temaBtn.onclick=()=>{const t=document.documentElement.getAttribute("data-tema")=
 meta().then(m=>{$("#st-dados").textContent="Dados até "+dt(m.ultima_cota);$("#st-series").textContent=nf0.format(m.fundos)+" fundos · "+nf0.format(m.com_serie_diaria||0)+" séries diárias";
   $("#rodape").textContent="Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI: "+(m.fontes&&m.fontes.cdi||"—")+" · Ibovespa: "+(m.fontes&&m.fontes.ibov||"—")+" · Demais benchmarks: B3 (Small Caps, IDIV, IFIX), ANBIMA (IMA, IRF-M, IHFA), Ipeadata (IPCA, IGP-M, dólar PTAX) e Yahoo Finance (S&P 500)"+" · Atualizado em "+new Date(m.atualizado).toLocaleString("pt-BR")+" · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento";}).catch(()=>{});
 let rz;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(rotaAtual==="compara"||rotaAtual==="fundo")render();},250);});
-render();
+acesso().then(()=>{liberado=true;render();}).catch(e=>console.error(e));
 })();
 </script>
 </body>

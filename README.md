@@ -1,4 +1,4 @@
-# Lupa de Fundos
+# Comparador de Fundos
 
 Terminal de fundos de investimento brasileiros com dados públicos da CVM:
 
@@ -25,6 +25,14 @@ Tudo roda no GitHub, sem servidor e sem nada no seu computador.
 3. Gera arquivos estáticos em `site/dados/` e publica o site no GitHub Pages.
 
 Os arquivos já baixados da CVM ficam em cache, então só os meses recentes são baixados de novo.
+
+## Senha de acesso
+
+O site pede uma senha quando existe o segredo `SITE_SENHA` no repositório (**Settings → Secrets and variables → Actions → New repository secret**). Com ele, todos os arquivos de dados são publicados criptografados (AES-256-GCM, chave derivada da senha com PBKDF2), então sem a senha não dá para ver nem os dados nem as telas.
+
+- Para trocar a senha, edite o segredo e rode a atualização. Quem tinha marcado "Lembrar neste computador" vai precisar digitar a nova.
+- Para tirar a senha, apague o segredo e rode a atualização.
+- O botão **Sair** no topo esquece a senha naquele navegador.
 
 ## Rodar a atualização na hora
 

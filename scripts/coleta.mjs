@@ -1,4 +1,4 @@
-// Coleta da Lupa de Fundos. Roda no GitHub Actions (Node 20+, sem dependências).
+// Coleta do Comparador de Fundos. Roda no GitHub Actions (Node 20+, sem dependências).
 // Baixa da CVM o informe diário, o cadastro (antigo e RCVM 175) e o extrato de informações;
 // CDI (Banco Central ou Ipeadata), Ibovespa e demais benchmarks (B3, ANBIMA, Ipeadata, Yahoo); e gera arquivos estáticos em site/dados/.
 //
@@ -9,6 +9,7 @@
 //   CACHE=cache            pasta com os arquivos já baixados (o workflow guarda entre execuções)
 //   SAIDA=site/dados       pasta de saída
 //   SITE_URL=https://...   site publicado; reserva se o CDI ou o Ibovespa falharem
+//   SITE_SENHA=...         senha de acesso: os arquivos de dados saem criptografados (AES-GCM, chave PBKDF2)
 //   CVM_BASE, BCB_BASE, YAHOO_BASE, B3_BASE, ANBIMA_BASE, IPEA_BASE   trocar as fontes (testes)
 
 import { spawn } from "node:child_process";
@@ -16,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import zlib from "node:zlib";
+import crypto from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
@@ -27,7 +29,7 @@ const CVM = (process.env.CVM_BASE || "https://dados.cvm.gov.br/dados/FI").replac
 const BCB = (process.env.BCB_BASE || "https://api.bcb.gov.br").replace(/\/$/, "");
 const YAHOO = (process.env.YAHOO_BASE || "https://query2.finance.yahoo.com").replace(/\/$/, "");
 const DIAS_ATIVO = 45;
-const UA = "LupaDeFundos/1.0 (comparador de fundos; dados publicos CVM/BCB)";
+const UA = "ComparadorDeFundos/1.0 (comparador de fundos; dados publicos CVM/BCB)";
 
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0).padStart(4)}s]`, ...a);
@@ -849,7 +851,42 @@ const BENCHMARKS = [
 // ------------------------------------------------------------------ formatos de saída
 // Dados publicados como texto: JSON compactado com gzip e codificado em base64, em arquivos .txt.
 // Firewalls corporativos costumam bloquear arquivos .gz (erro 403); texto passa normalmente.
-const gzTexto = (str) => Buffer.from(zlib.gzipSync(str, { level: 9 }).toString("base64"));
+// Com SITE_SENHA, o gzip é cifrado (AES-256-GCM: iv de 12 bytes + texto cifrado + tag), e o navegador decifra com a senha.
+const SENHA = process.env.SITE_SENHA || "";
+const ITER = 210000, TESTE = "comparador-de-fundos";
+let CHAVE = null, SAL = null;
+function cifra(buf) {
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv("aes-256-gcm", CHAVE, iv);
+  return Buffer.concat([iv, c.update(buf), c.final(), c.getAuthTag()]);
+}
+function decifra(buf, chave = CHAVE) {
+  const d = crypto.createDecipheriv("aes-256-gcm", chave, buf.subarray(0, 12));
+  d.setAuthTag(buf.subarray(buf.length - 16));
+  return Buffer.concat([d.update(buf.subarray(12, buf.length - 16)), d.final()]);
+}
+// Mantém o sal da publicação anterior quando a senha não mudou, para quem marcou "lembrar" não ter de digitar de novo.
+async function prepararChave() {
+  if (!SENHA) { log("sem SITE_SENHA: dados publicados sem senha"); return; }
+  let prev = null;
+  try { prev = await anterior("chave.json"); } catch {}
+  if (prev?.sal) {
+    const k = crypto.pbkdf2Sync(SENHA, Buffer.from(prev.sal, "base64"), prev.iter || ITER, 32, "sha256");
+    try { if (decifra(Buffer.from(prev.teste, "base64"), k).toString() === TESTE) { SAL = Buffer.from(prev.sal, "base64"); CHAVE = k; } } catch {}
+  }
+  if (!CHAVE) { SAL = crypto.randomBytes(16); CHAVE = crypto.pbkdf2Sync(SENHA, SAL, ITER, 32, "sha256"); log("senha nova (ou primeira publicação com senha): quem acessa terá de digitar a senha de novo"); }
+  else log("senha mantida");
+}
+const gzTexto = (str) => { const gz = zlib.gzipSync(str, { level: 9 }); return Buffer.from((CHAVE ? cifra(gz) : gz).toString("base64")); };
+async function anteriorTexto(nome) {
+  if (!SITE_URL) return null;
+  try {
+    const r = await fetch(`${SITE_URL}/dados/${nome}`, { headers: { "User-Agent": UA_NAVEGADOR } });
+    if (!r.ok) return null;
+    let buf = Buffer.from((await r.text()).trim(), "base64");
+    if (CHAVE) buf = decifra(buf);
+    return JSON.parse(zlib.gunzipSync(buf).toString());
+  } catch { return null; }
+}
 function compacta(d, v, dig = 10) {
   const dd = new Array(d.length - 1);
   for (let i = 1; i < d.length; i++) dd[i - 1] = d[i] - d[i - 1];
@@ -905,6 +942,7 @@ function metricas12(f, fatorCdi, refDia) {
 async function main() {
   fs.mkdirSync(CACHE, { recursive: true });
   log(`início: ${INICIO}`);
+  await prepararChave();
   await informes();
   for (const f of fundos.values()) ordenar(f);
   await cadastro();
@@ -931,7 +969,7 @@ async function main() {
   }
 
   // Índices (com reserva no site já publicado)
-  const prev = await anterior("indices.json");
+  const prev = (await anteriorTexto("indices.txt")) || (await anterior("indices.json"));
   const indices = { atualizado: new Date().toISOString() };
   for (const [nome, fn] of [["cdi", cdi], ["ibov", ibov]]) {
     try {
@@ -1067,7 +1105,8 @@ async function main() {
   const campos = ["id", "nome", "classe", "situacao", "ativo", "serie", "ret12", "vol12", "sharpe12", "taxa_adm", "pl", "gestor", "admin", "inicio", "univ", "cotistas", "tipo", "ultima", "cap12"];
   const idx = gzTexto(JSON.stringify({ campos, ref: iso(refDia), fundos: lista }));
   fs.writeFileSync(path.join(SAIDA, "fundos.txt"), idx);
-  fs.writeFileSync(path.join(SAIDA, "indices.json"), JSON.stringify(indices));
+  fs.writeFileSync(path.join(SAIDA, "indices.txt"), gzTexto(JSON.stringify(indices)));
+  if (CHAVE) fs.writeFileSync(path.join(SAIDA, "chave.json"), JSON.stringify({ v: 1, iter: ITER, sal: SAL.toString("base64"), teste: cifra(Buffer.from(TESTE)).toString("base64") }));
   const comSerie = lista.filter((x) => x[5] === "D").length;
   const meta = {
     atualizado: new Date().toISOString(), ultima_cota: iso(refDia), fundos: lista.length, com_serie_diaria: comSerie,
