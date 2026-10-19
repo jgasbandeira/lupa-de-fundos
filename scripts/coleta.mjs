@@ -537,7 +537,7 @@ function serieMensal(cnpj) {
 }
 
 // ------------------------------------------------------------------ carteira (CDA)
-// Últimas competências da composição da carteira de cada fundo. Grava site/dados/c/<cnpj>.json.gz
+// Últimas competências da composição da carteira de cada fundo. Grava site/dados/c/<cnpj>.txt
 const CDA_MESES = +(process.env.CDA_MESES || 12), CDA_MAX_POS = 80;
 async function carteiras() {
   const meses = [];
@@ -603,8 +603,8 @@ async function carteiras() {
   fs.mkdirSync(path.join(SAIDA, "c"), { recursive: true });
   let bytes = 0;
   for (const [c, lista] of porFundo) {
-    const gz = zlib.gzipSync(`{"cnpj":"${c}","competencias":[${lista.join(",")}]}`, { level: 9 });
-    fs.writeFileSync(path.join(SAIDA, "c", `${c}.json.gz`), gz);
+    const gz = gzTexto(`{"cnpj":"${c}","competencias":[${lista.join(",")}]}`);
+    fs.writeFileSync(path.join(SAIDA, "c", `${c}.txt`), gz);
     bytes += gz.length;
   }
   log(`carteiras: ${porFundo.size.toLocaleString("pt-BR")} fundos, ${usados} competências, ${posTotal.toLocaleString("pt-BR")} posições, ${Math.round(bytes / 1e6)} MB`);
@@ -690,6 +690,9 @@ async function ibov() {
 }
 
 // ------------------------------------------------------------------ formatos de saída
+// Dados publicados como texto: JSON compactado com gzip e codificado em base64, em arquivos .txt.
+// Firewalls corporativos costumam bloquear arquivos .gz (erro 403); texto passa normalmente.
+const gzTexto = (str) => Buffer.from(zlib.gzipSync(str, { level: 9 }).toString("base64"));
 function compacta(d, v, dig = 10) {
   const dd = new Array(d.length - 1);
   for (let i = 1; i < d.length; i++) dd[i - 1] = d[i] - d[i - 1];
@@ -801,8 +804,8 @@ async function main() {
   const lista = [];
   let bytes = 0, pontos = 0, soCadastro = 0, comMensal = 0;
   const escrever = (id, obj) => {
-    const gz = zlib.gzipSync(JSON.stringify(obj), { level: 9 });
-    fs.writeFileSync(path.join(SAIDA, "f", `${id}.json.gz`), gz);
+    const gz = gzTexto(JSON.stringify(obj));
+    fs.writeFileSync(path.join(SAIDA, "f", `${id}.txt`), gz);
     bytes += gz.length;
   };
   const r2 = (x) => (x == null ? null : Math.round(x * 100) / 100);
@@ -885,8 +888,8 @@ async function main() {
   // Ativos primeiro, depois por PL
   lista.sort((a, b) => b[4] - a[4] || (b[10] || 0) - (a[10] || 0));
   const campos = ["id", "nome", "classe", "situacao", "ativo", "serie", "ret12", "vol12", "sharpe12", "taxa_adm", "pl", "gestor", "admin", "inicio", "univ", "cotistas", "tipo", "ultima"];
-  const idx = zlib.gzipSync(JSON.stringify({ campos, ref: iso(refDia), fundos: lista }), { level: 9 });
-  fs.writeFileSync(path.join(SAIDA, "fundos.json.gz"), idx);
+  const idx = gzTexto(JSON.stringify({ campos, ref: iso(refDia), fundos: lista }));
+  fs.writeFileSync(path.join(SAIDA, "fundos.txt"), idx);
   fs.writeFileSync(path.join(SAIDA, "indices.json"), JSON.stringify(indices));
   const comSerie = lista.filter((x) => x[5] === "D").length;
   const meta = {

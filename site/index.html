@@ -196,7 +196,13 @@ async function listaVisivel(){const idx=await indice();return incluirCancelados?
 const DADOS="dados/";
 const cacheJson=new Map();
 async function lerResposta(r,nome){
-  if(!r.ok)throw new Error(r.status===404?"NAO_ENCONTRADO":"Falha ao carregar dados ("+r.status+")");
+  if(!r.ok)throw new Error(r.status===404?"NAO_ENCONTRADO":r.status===403?"Acesso aos dados bloqueado (403). Se você está numa rede corporativa, o firewall pode estar bloqueando o site.":"Falha ao carregar dados ("+r.status+")");
+  if(nome.endsWith(".txt")){
+    // JSON compactado (gzip) em base64: formato que passa por firewalls corporativos
+    if(typeof DecompressionStream==="undefined")throw new Error("Seu navegador está desatualizado. Atualize o Chrome, Edge ou Firefox para usar o site.");
+    const b64=(await r.text()).trim(),bin=atob(b64),buf=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+    return JSON.parse(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))).text());
+  }
   if(!nome.endsWith(".gz"))return r.json();
   const buf=new Uint8Array(await r.arrayBuffer());
   if(buf[0]!==0x1f||buf[1]!==0x8b)return JSON.parse(new TextDecoder().decode(buf));
@@ -210,7 +216,7 @@ const meta=()=>getJson("meta.json");
 let IDX=null;
 async function indice(){
   if(IDX)return IDX;
-  const j=await getJson("fundos.json.gz"),C=j.campos,ix={};C.forEach((c,i)=>ix[c]=i);
+  const j=await getJson("fundos.txt"),C=j.campos,ix={};C.forEach((c,i)=>ix[c]=i);
   const arr=j.fundos.map(r=>{const o={};for(const c of C)o[c]=r[ix[c]];o.cnpj=o.id.slice(0,14);o.bn=norm(o.nome);return o;});
   IDX={ref:j.ref,lista:arr,porId:new Map(arr.map(o=>[o.id,o]))};
   return IDX;
@@ -221,7 +227,7 @@ function expandeSemanal(s){if(!s)return null;const n=s.dd.length+1,d=new Array(n
 const fichas=new Map();
 async function ficha(id){
   if(fichas.has(id))return fichas.get(id);
-  const f=await getJson("f/"+id+".json.gz");
+  const f=await getJson("f/"+id+".txt");
   if(f.serie&&typeof f.serie==="object"){const e=expandeCota(f.serie);f.d=e.d;f.q=e.v;}
   f.sem=expandeSemanal(f.semanal);
   fichas.set(id,f);return f;
@@ -812,7 +818,7 @@ async function telaFundo(r){
 // ================================================================ FICHA · CARTEIRA (CDA)
 async function abaCarteira(c,f,comp,link){
   c.innerHTML='<div class="carregando">Carregando carteira…</div>';
-  let cart=null;try{cart=await getJson("c/"+f.cnpj+".json.gz");}catch(e){}
+  let cart=null;try{cart=await getJson("c/"+f.cnpj+".txt");}catch(e){}
   if(!cart||!cart.competencias||!cart.competencias.length){c.innerHTML='<section class="painel aviso"><div class="cab">Carteira não disponível</div><div class="corpo"><div>A CVM não tem composição de carteira (CDA) publicada para este fundo nas competências recentes. '+(f.estruturado?"Fundos estruturados (FII, FIDC, FIP) declaram ativos em documentos próprios.":"")+'</div></div></section>';return;}
   const comps=cart.competencias.slice().sort((a,b)=>b.c.localeCompare(a.c));
   const x=comps.find(k=>k.c===comp)||comps[0];
