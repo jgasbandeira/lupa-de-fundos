@@ -78,7 +78,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: cache/hist
-          key: cvm-hist-v2-${{ hashFiles('cache/hist/*.zip', 'cache/hist/ausentes-v2.json') }}
+          key: cvm-hist-v2-${{ hashFiles('cache/hist/*.zip', 'cache/hist/*.json') }}
 
       # Guarda o log no ramo "logs" do repositório (dá para ver mesmo se algo falhar)
       - name: Salvar log

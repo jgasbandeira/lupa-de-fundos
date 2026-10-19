@@ -1,6 +1,6 @@
 // Coleta da Lupa de Fundos. Roda no GitHub Actions (Node 20+, sem dependências).
 // Baixa da CVM o informe diário, o cadastro (antigo e RCVM 175) e o extrato de informações;
-// CDI (Banco Central ou Ipeadata) e Ibovespa; e gera arquivos estáticos em site/dados/.
+// CDI (Banco Central ou Ipeadata), Ibovespa e demais benchmarks (B3, ANBIMA, Ipeadata, Yahoo); e gera arquivos estáticos em site/dados/.
 //
 //   node scripts/coleta.mjs
 //
@@ -9,7 +9,7 @@
 //   CACHE=cache            pasta com os arquivos já baixados (o workflow guarda entre execuções)
 //   SAIDA=site/dados       pasta de saída
 //   SITE_URL=https://...   site publicado; reserva se o CDI ou o Ibovespa falharem
-//   CVM_BASE, BCB_BASE, YAHOO_BASE   trocar as fontes (testes)
+//   CVM_BASE, BCB_BASE, YAHOO_BASE, B3_BASE, ANBIMA_BASE, IPEA_BASE   trocar as fontes (testes)
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -634,7 +634,8 @@ async function cdiBcb() {
 // Reserva: Ipeadata. Selic over diária (% a.a.), que na prática acompanha o CDI, calibrada mês a mês pelo CDI mensal oficial.
 async function ipea(codigo) {
   let ultimo;
-  for (const base of ["https://www.ipeadata.gov.br", "http://www.ipeadata.gov.br"]) {
+  const bases = process.env.IPEA_BASE ? [process.env.IPEA_BASE] : ["https://www.ipeadata.gov.br", "http://www.ipeadata.gov.br"];
+  for (const base of bases) {
     try { return (await json(`${base}/api/odata4/ValoresSerie(SERCODIGO='${codigo}')`, 2)).value || []; }
     catch (e) { ultimo = e; }
   }
@@ -676,18 +677,144 @@ async function cdi() {
   try { return await cdiBcb(); }
   catch (e) { log(`CDI no Banco Central falhou (${e.message.slice(0, 80)}); tentando Ipeadata`); return cdiIpea(); }
 }
-async function ibov() {
+async function yahoo(simbolo, fuso = -3) {
   const p1 = (DIA_INI - 10) * 86400, p2 = Math.floor(Date.now() / 1000);
-  const j = await json(`${YAHOO}/v8/finance/chart/%5EBVSP?period1=${p1}&period2=${p2}&interval=1d`);
+  const j = await json(`${YAHOO}/v8/finance/chart/${encodeURIComponent(simbolo)}?period1=${p1}&period2=${p2}&interval=1d`);
   const r = j.chart.result[0], pts = new Map();
   r.timestamp.forEach((ts, i) => {
     const v = r.indicators.quote[0].close[i];
-    if (v != null) pts.set(Math.floor((ts - 3 * 3600) / 86400), v);
+    if (v != null) pts.set(Math.floor((ts + fuso * 3600) / 86400), v);
   });
   const ds = [...pts.keys()].sort((a, b) => a - b);
-  if (ds.length < 20) throw new Error("série do Ibovespa veio vazia");
-  return { d: ds, v: ds.map((d) => +pts.get(d).toFixed(2)), fonte: "Yahoo Finance (^BVSP)" };
+  if (ds.length < 20) throw new Error(`série ${simbolo} do Yahoo veio vazia`);
+  return { d: ds, v: ds.map((d) => pts.get(d)), fonte: `Yahoo Finance (${simbolo})` };
 }
+
+// B3: evolução diária do índice, um ano por chamada (tabela dia × mês). Anos fechados ficam em cache.
+const B3 = (process.env.B3_BASE || "https://sistemaswebb3-listados.b3.com.br").replace(/\/$/, "");
+async function b3(indice) {
+  const pts = [];
+  const anoHoje = hoje.getUTCFullYear();
+  for (let ano = INICIO; ano <= anoHoje; ano++) {
+    const arq = path.join(CACHE, "hist", `b3-${indice}-${ano}.json`);
+    let lista = null;
+    if (ano < anoHoje && fs.existsSync(arq)) lista = JSON.parse(fs.readFileSync(arq, "utf8"));
+    else {
+      const arg = Buffer.from(JSON.stringify({ index: indice, language: "pt-br", year: String(ano) })).toString("base64");
+      const j = await json(`${B3}/indexStatisticsProxy/IndexCall/GetPortfolioDay/${arg}`, 2);
+      lista = [];
+      for (const r of j.results || []) for (let m = 1; m <= 12; m++) {
+        const s = r[`rateValue${m}`];
+        if (!s) continue;
+        const v = +String(s).replace(/\./g, "").replace(",", ".");
+        if (v > 0) lista.push([dia(`${ano}-${String(m).padStart(2, "0")}-${String(r.day).padStart(2, "0")}`), v]);
+      }
+      if (ano < anoHoje) { fs.mkdirSync(path.dirname(arq), { recursive: true }); fs.writeFileSync(arq, JSON.stringify(lista)); }
+      await new Promise((s) => setTimeout(s, 150));
+    }
+    pts.push(...lista);
+  }
+  pts.sort((a, b) => a[0] - b[0]);
+  if (pts.length < 20) throw new Error(`série ${indice} da B3 veio vazia`);
+  return { d: pts.map((p) => p[0]), v: pts.map((p) => p[1]), fonte: `B3 (${indice})` };
+}
+async function ibov() {
+  try { return await b3("IBOV"); }
+  catch (e) { log(`Ibovespa na B3 falhou (${e.message.slice(0, 80)}); tentando Yahoo`); const r = await yahoo("^BVSP"); r.v = r.v.map((x) => +x.toFixed(2)); return r; }
+}
+
+// ANBIMA: planilha com o histórico completo de cada índice (xlsx). Coluna B = data (serial do Excel), C = número-índice.
+const ANBIMA = (process.env.ANBIMA_BASE || "https://s3-data-prd-use1-precos.s3.us-east-1.amazonaws.com/arquivos/indices-historico").replace(/\/$/, "");
+function lerMembro(zip, membro) {
+  return new Promise((ok, erro) => {
+    const p = spawn("unzip", ["-p", zip, membro]);
+    const partes = [];
+    p.stdout.on("data", (d) => partes.push(d));
+    p.on("close", (c) => (c === 0 ? ok(Buffer.concat(partes).toString("utf8")) : erro(new Error(`unzip -p ${zip} ${membro} (${c})`))));
+  });
+}
+async function anbima(codigo) {
+  const arq = path.join(CACHE, "anbima", `${codigo}.xlsx`);
+  const st = await baixar(`${ANBIMA}/${codigo}-HISTORICO.xls`, arq, { forcar: true });
+  if (st === "404") throw new Error(`${codigo}: arquivo da ANBIMA não encontrado`);
+  const xml = await lerMembro(arq, "xl/worksheets/sheet1.xml");
+  const pts = new Map();
+  for (const m of xml.matchAll(/<row\b[^>]*>(.*?)<\/row>/gs)) {
+    let d = null, v = null;
+    for (const c of m[1].matchAll(/<c r="([A-Z]+)\d+"[^>]*?(?:\/>|>(?:<v>([^<]*)<\/v>)?.*?<\/c>)/gs)) {
+      if (c[1] === "B" && c[2] != null) d = Math.round(+c[2]) - 25569;
+      if (c[1] === "C" && c[2] != null) v = +c[2];
+    }
+    if (d != null && v > 0 && d >= DIA_INI - 10 && d <= DIA_HOJE) pts.set(d, v);
+  }
+  const ds = [...pts.keys()].sort((a, b) => a - b);
+  if (ds.length < 20) throw new Error(`${codigo}: planilha da ANBIMA sem dados`);
+  return { d: ds, v: ds.map((x) => pts.get(x)), fonte: `ANBIMA (${codigo})` };
+}
+
+// Índices de preço mensais (Ipeadata) viram série diária: a variação do mês é distribuída nos dias úteis do mês.
+function mensalParaDiario(mensal, calendario) {
+  const porMes = new Map();
+  for (const d of calendario) { const m = iso(d).slice(0, 7); if (!porMes.has(m)) porMes.set(m, []); porMes.get(m).push(d); }
+  const meses = [...porMes.keys()].sort();
+  const d = [], v = [];
+  let nivel = 1000;
+  for (let i = 1; i < meses.length; i++) {
+    const r = mensal.get(meses[i]);
+    if (r == null) { if (d.length) break; else continue; }
+    if (!d.length) { const ant = porMes.get(meses[i - 1]); d.push(ant[ant.length - 1]); v.push(nivel); }
+    const ds = porMes.get(meses[i]), n = ds.length;
+    ds.forEach((x, k) => { d.push(x); v.push(nivel * Math.pow(1 + r / 100, (k + 1) / n)); });
+    nivel *= 1 + r / 100;
+  }
+  return { d, v };
+}
+async function precoMensal(codigo, calendario) {
+  const lista = await ipea(codigo);
+  const mensal = new Map(lista.filter((x) => x.VALVALOR != null).map((x) => [x.VALDATA.slice(0, 7), +x.VALVALOR]));
+  const r = mensalParaDiario(mensal, calendario);
+  if (r.d.length < 20) throw new Error(`${codigo}: série mensal do Ipeadata veio vazia`);
+  return { ...r, fonte: `Ipeadata (${codigo}), variação mensal distribuída nos dias úteis` };
+}
+async function dolar() {
+  try {
+    const pts = (await ipea("GM366_ERC366")).filter((x) => x.VALVALOR != null).map((x) => [dia(x.VALDATA.slice(0, 10)), +x.VALVALOR]).filter((p) => p[0] >= DIA_INI - 10).sort((a, b) => a[0] - b[0]);
+    if (pts.length < 20) throw new Error("PTAX do Ipeadata veio vazia");
+    return { d: pts.map((p) => p[0]), v: pts.map((p) => p[1]), fonte: "Ipeadata (GM366_ERC366): PTAX venda" };
+  } catch (e) { log(`dólar no Ipeadata falhou (${e.message.slice(0, 80)}); tentando Yahoo`); return yahoo("BRL=X"); }
+}
+// S&P 500 em reais: índice (Yahoo) × dólar do mesmo dia (ou do último dia com cotação)
+async function spxReais(usd) {
+  if (!usd) throw new Error("sem série do dólar");
+  const s = await yahoo("^GSPC", -5);
+  const d = [], v = [];
+  let j = 0;
+  for (let i = 0; i < s.d.length; i++) {
+    while (j + 1 < usd.d.length && usd.d[j + 1] <= s.d[i]) j++;
+    if (usd.d[j] > s.d[i] || s.d[i] - usd.d[j] > 7) continue;
+    d.push(s.d[i]); v.push(s.v[i] * usd.v[j]);
+  }
+  if (d.length < 20) throw new Error("S&P 500 em reais sem dados");
+  return { d, v, fonte: "Yahoo Finance (^GSPC) × dólar" };
+}
+
+// Benchmarks além do CDI. tipo "taxa" = série suave (sem sentido calcular beta ou correlação diária).
+const BENCHMARKS = [
+  { id: "IPCA", nome: "IPCA", grupo: "Inflação", tipo: "taxa", fn: (cal) => precoMensal("PRECOS12_IPCAG12", cal) },
+  { id: "IGPM", nome: "IGP-M", grupo: "Inflação", tipo: "taxa", fn: (cal) => precoMensal("IGP12_IGPMG12", cal) },
+  { id: "IMAB", nome: "IMA-B", grupo: "Renda fixa", fn: () => anbima("IMAB") },
+  { id: "IMAB5", nome: "IMA-B 5", grupo: "Renda fixa", fn: () => anbima("IMAB5") },
+  { id: "IMAB5MAIS", nome: "IMA-B 5+", grupo: "Renda fixa", fn: () => anbima("IMAB5MAIS") },
+  { id: "IRFM", nome: "IRF-M", grupo: "Renda fixa", fn: () => anbima("IRFM") },
+  { id: "IMAS", nome: "IMA-S", grupo: "Renda fixa", fn: () => anbima("IMAS") },
+  { id: "IMAGERAL", nome: "IMA-Geral", grupo: "Renda fixa", fn: () => anbima("IMAGERAL") },
+  { id: "IHFA", nome: "IHFA", grupo: "Multimercado", fn: () => anbima("IHFA") },
+  { id: "SMLL", nome: "Small Caps", grupo: "Ações", fn: () => b3("SMLL") },
+  { id: "IDIV", nome: "IDIV", grupo: "Ações", fn: () => b3("IDIV") },
+  { id: "IFIX", nome: "IFIX", grupo: "Imobiliário", fn: () => b3("IFIX") },
+  { id: "USD", nome: "Dólar", grupo: "Exterior", fn: () => dolar() },
+  { id: "SPXBRL", nome: "S&P 500 (R$)", grupo: "Exterior", fn: (cal, ja) => spxReais(ja.USD) },
+];
 
 // ------------------------------------------------------------------ formatos de saída
 // Dados publicados como texto: JSON compactado com gzip e codificado em base64, em arquivos .txt.
@@ -784,6 +911,24 @@ async function main() {
     } catch (e) {
       if (prev?.[nome]) { indices[nome] = prev[nome]; aviso(`${nome}: ${e.message}. Usando a série publicada anteriormente.`); }
       else aviso(`${nome}: ${e.message}. Sem série.`);
+    }
+  }
+  // Demais benchmarks. Calendário de dias úteis = datas do CDI (ou dias da semana, sem CDI).
+  let calendario = [];
+  if (indices.cdi) { let x = indices.cdi.d0; calendario.push(x); for (const k of indices.cdi.dd) { x += k; calendario.push(x); } }
+  else for (let x = DIA_INI; x <= DIA_HOJE; x++) { const w = new Date(x * DIA_MS).getUTCDay(); if (w && w < 6) calendario.push(x); }
+  indices.extra = {};
+  const brutos = {};
+  for (const b of BENCHMARKS) {
+    try {
+      const r = await b.fn(calendario, brutos);
+      brutos[b.id] = r;
+      indices.extra[b.id] = { nome: b.nome, grupo: b.grupo, tipo: b.tipo || "preco", fonte: r.fonte, ...compacta(r.d, r.v, 8) };
+      log(`${b.nome}: ${r.d.length} pontos, ${iso(r.d[0])} → ${iso(r.d[r.d.length - 1])} (${r.fonte})`);
+    } catch (e) {
+      const p = prev?.extra?.[b.id];
+      if (p) { indices.extra[b.id] = p; aviso(`${b.nome}: ${e.message}. Usando a série publicada anteriormente.`); }
+      else aviso(`${b.nome}: ${e.message}. Sem série.`);
     }
   }
   // Fator acumulado do CDI para as métricas do ranking
@@ -896,7 +1041,7 @@ async function main() {
     atualizado: new Date().toISOString(), ultima_cota: iso(refDia), fundos: lista.length, com_serie_diaria: comSerie,
     so_cadastro: soCadastro, fundos_ativos: lista.filter((x) => x[4]).length,
     inicio: iso([...fundos.values()].reduce((m, f) => (f.d.length ? Math.min(m, f.d[0]) : m), Infinity)), cotas: pontos,
-    tamanho_mb: Math.round((bytes + idx.length) / 1e6), fontes: { cdi: indices.cdi?.fonte || null, ibov: indices.ibov?.fonte || null }, avisos,
+    tamanho_mb: Math.round((bytes + idx.length) / 1e6), fontes: { cdi: indices.cdi?.fonte || null, ibov: indices.ibov?.fonte || null, ...Object.fromEntries(Object.entries(indices.extra || {}).map(([k, x]) => [k, x.fonte])) }, avisos,
   };
   fundos.clear();
   mensal.clear();

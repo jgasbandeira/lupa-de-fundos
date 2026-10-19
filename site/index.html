@@ -125,7 +125,10 @@ td.lbl{text-align:left;color:var(--fraco)}
 .leg{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:11px;text-transform:uppercase}
 .leg span{display:inline-flex;gap:6px;align-items:center}
 .leg i{width:16px;height:2px;display:inline-block}
-.leg i.tr{background:repeating-linear-gradient(90deg,var(--bench) 0 4px,transparent 4px 7px)!important}
+.leg i.tr{background:repeating-linear-gradient(90deg,var(--c,var(--bench)) 0 4px,transparent 4px 7px)!important}
+.bsel{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.bg{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+.bx{width:58px;padding:2px 4px;font:inherit;font-size:11px}
 
 /* grades de indicadores */
 .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 14px}
@@ -161,7 +164,7 @@ footer{border-top:1px solid var(--borda);font-size:10px;color:var(--fraco);paddi
     </nav>
     <button class="tema" id="tema" type="button">Tema claro</button>
   </div>
-  <div class="wrap status"><span class="fonte">CVM · CDI · IBOV</span><span id="st-dados">Dados até —</span><label class="canc"><input type="checkbox" id="st-canc"> Incluir fundos cancelados</label><span class="dir" id="st-series">—</span></div>
+  <div class="wrap status"><span class="fonte">CVM · B3 · ANBIMA · BCB</span><span id="st-dados">Dados até —</span><label class="canc"><input type="checkbox" id="st-canc"> Incluir fundos cancelados</label><span class="dir" id="st-series">—</span></div>
 </header>
 <main class="wrap" id="app"><div class="carregando">Carregando…</div></main>
 <footer class="wrap" id="rodape">Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI · Ibovespa · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento</footer>
@@ -176,6 +179,8 @@ const DIA=864e5,isoDia=d=>new Date(d*DIA).toISOString().slice(0,10);
 const nf=(d)=>new Intl.NumberFormat("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d});
 const nf2=nf(2),nf1=nf(1),nf0=nf(0);
 const pct=(x,sinal=true)=>x==null||!isFinite(x)?"—":(sinal&&x>0?"+":"")+nf2.format(x*100).replace("-","−")+"%";
+const pp=x=>x==null||!isFinite(x)?"—":(x>0?"+":"")+nf2.format(x*100).replace("-","−")+" p.p.";
+const atraso=(ult,fim)=>ult&&fim&&(Date.parse(fim)-Date.parse(ult))/864e5>4?ult:null;
 const num=(x,d=2)=>x==null||!isFinite(x)?"—":nf(d).format(x).replace("-","−");
 function brl(x){if(x==null||!isFinite(x))return"—";const a=Math.abs(x);let s;if(a>=1e9)s=nf1.format(x/1e9)+" bi";else if(a>=1e6)s=nf1.format(x/1e6)+" mi";else if(a>=1e3)s=nf1.format(x/1e3)+" mil";else s=nf2.format(x);return"R$ "+s;}
 const dt=s=>{if(!s)return"—";const[y,m,d]=s.slice(0,10).split("-");return d+"/"+m+"/"+y;};
@@ -238,7 +243,68 @@ async function benchs(){
   const j=await getJson("indices.json");const B={fontes:{}};
   if(j.cdi){const e=expandeQ(j.cdi);const fat=[];let acc=1;for(let i=0;i<e.d.length;i++){fat.push(acc);acc*=1+e.v[i]/100;}B.cdi={d:e.d,v:fat,ultimo:acc};B.fontes.cdi=j.cdi.fonte;}
   if(j.ibov){const e=expandeQ(j.ibov);B.ibov={d:e.d,v:e.v};B.fontes.ibov=j.ibov.fonte;}
+  B.lista=[];
+  if(B.cdi)B.lista.push({id:"CDI",nome:"CDI",grupo:"Juros",tipo:"taxa",d:B.cdi.d,v:B.cdi.v,fonte:B.fontes.cdi});
+  if(B.ibov)B.lista.push({id:"IBOV",nome:"Ibovespa",grupo:"Ações",tipo:"preco",d:B.ibov.d,v:B.ibov.v,fonte:B.fontes.ibov});
+  for(const[id,x]of Object.entries(j.extra||{})){const e=expandeQ(x);B.lista.push({id,nome:x.nome,grupo:x.grupo,tipo:x.tipo,d:e.d,v:e.v,fonte:x.fonte});}
+  B.porId=new Map(B.lista.map(b=>[b.id,b]));
   BENCH=B;return BENCH;
+}
+// ================================================================ benchmarks
+const GRUPOS_B=["Juros","Inflação","Renda fixa","Multimercado","Ações","Imobiliário","Exterior"];
+const IPCA_MAIS=/^IPCA\+(\d{1,2}(?:\.\d{1,2})?)$/;
+// Série de um benchmark pelo id. "IPCA+6" = IPCA mais 6% a.a. (252 dias úteis), montado no navegador.
+function serieBench(id){
+  if(!BENCH)return null;const b=BENCH.porId.get(id);if(b)return b;
+  const m=IPCA_MAIS.exec(id),ip=BENCH.porId.get("IPCA");if(!m||!ip)return null;
+  const x=+m[1],f=Math.pow(1+x/100,1/252);let a=1;const v=ip.v.map((y,i)=>{if(i)a*=f;return y*a;});
+  const s={id,nome:"IPCA + "+String(x).replace(".",",")+"%",grupo:"Inflação",tipo:"taxa",d:ip.d,v,fonte:ip.fonte+" + "+x+"% a.a."};
+  BENCH.porId.set(id,s);return s;
+}
+const benchValidos=lista=>[...new Set(lista)].filter(id=>serieBench(id));
+// Benchmark padrão da ficha: CDI mais o indicador de desempenho declarado no cadastro (ou um palpite pela classe).
+function padraoBench(f){
+  const t=((f.indicador||"")+"").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ");
+  let x=null;const ip=/IPCA\s*\+\s*(\d{1,2}(?:[.,]\d{1,2})?)/.exec(t);
+  if(ip)x="IPCA+"+ip[1].replace(",",".");
+  else if(/IMA.?B.?5\s*\+|IMAB5\s*MAIS|IMA.?B.?5.?MAIS/.test(t))x="IMAB5MAIS";else if(/IMA.?B.?5/.test(t))x="IMAB5";else if(/IMA.?B/.test(t))x="IMAB";
+  else if(/IRF.?M/.test(t))x="IRFM";else if(/IMA.?S\b/.test(t))x="IMAS";else if(/IMA.?GERAL/.test(t))x="IMAGERAL";
+  else if(/IHFA/.test(t))x="IHFA";else if(/IFIX/.test(t))x="IFIX";else if(/SMLL|SMALL/.test(t))x="SMLL";else if(/IDIV/.test(t))x="IDIV";
+  else if(/IBOV|IBRX|IBX/.test(t))x="IBOV";else if(/IGP.?M/.test(t))x="IGPM";else if(/IPCA/.test(t))x="IPCA";
+  else if(/S&P|SP ?500|S\.P/.test(t))x="SPXBRL";else if(/DOLAR|PTAX|USD|CAMBIAL/.test(t))x="USD";
+  if(!x){const c=((f.classe||"")+" "+(f.anbima||"")).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");if(/ACOES/.test(c))x="IBOV";else if(/MULTIMERCADO/.test(c))x="IHFA";else if(/CAMBIAL/.test(c))x="USD";}
+  return benchValidos(["CDI"].concat(x?[x]:[]));
+}
+const MAXB=6;
+// Botões de benchmarks agrupados. sel = lista de ids; mudar(novaLista).
+function seletorBench(el,sel,mudar){
+  if(!BENCH||!BENCH.lista.length){el.innerHTML='<span class="fraco">Sem benchmarks.</span>';return;}
+  const ipSel=sel.find(x=>IPCA_MAIS.test(x)),spread=ipSel?IPCA_MAIS.exec(ipSel)[1]:"5";
+  const bt=(id,rot,title)=>'<button type="button" data-b="'+h(id)+'" aria-pressed="'+sel.includes(id)+'" title="'+h(title||"")+'">'+h(rot)+'</button>';
+  el.innerHTML='<div class="bsel">'+GRUPOS_B.map(g=>{const l=BENCH.lista.filter(b=>b.grupo===g);if(!l.length)return"";
+    let s=l.map(b=>bt(b.id,b.nome,b.fonte)).join("");
+    if(g==="Inflação"&&BENCH.porId.has("IPCA"))s+=bt(ipSel||"IPCA+"+spread,"IPCA +","IPCA mais uma taxa fixa ao ano");
+    return'<span class="bg"><span class="rotulo">'+g+'</span><span class="seg">'+s+'</span>'+(g==="Inflação"&&BENCH.porId.has("IPCA")?'<input type="number" class="bx" min="0" max="30" step="0.5" value="'+h(spread)+'" aria-label="Taxa sobre o IPCA (% a.a.)"><span class="fraco">% a.a.</span>':"")+'</span>';}).join("")+'</div>';
+  el.querySelectorAll("button[data-b]").forEach(b=>b.onclick=()=>{
+    let id=b.dataset.b;if(IPCA_MAIS.test(id)){const v=+el.querySelector(".bx").value;id="IPCA+"+(isFinite(v)&&v>=0?Math.round(v*100)/100:5);}
+    const tem=sel.includes(b.dataset.b);
+    if(!tem&&sel.length>=MAXB){toast("Até "+MAXB+" benchmarks ao mesmo tempo.");return;}
+    mudar(tem?sel.filter(x=>x!==b.dataset.b):sel.concat(id));});
+  const bx=el.querySelector(".bx");if(bx)bx.onchange=()=>{const v=+bx.value;if(!isFinite(v)||v<0||v>30)return;const novo="IPCA+"+Math.round(v*100)/100;
+    if(ipSel)mudar(sel.map(x=>x===ipSel?novo:x));else if(sel.length<MAXB)mudar(sel.concat(novo));};
+}
+// Fundo contra um benchmark, nas mesmas datas.
+function contraBench(d,v,b){
+  const n=d.length;if(n<3||!b)return null;
+  const b0=valorEm(b,d[0]),b1=valorEm(b,d[n-1]);if(!b0||!b1)return null;
+  const bFim=b.d[b.d.length-1]<d[n-1]?b.d[b.d.length-1]:null;
+  const mp=new Map();{const w=recorta(b.d,b.v,d[0],d[n-1]);w.d.forEach((x,i)=>mp.set(x,w.v[i]));}
+  const xs=[],ys=[];for(let i=1;i<n;i++){const p=mp.get(d[i-1]),q=mp.get(d[i]);if(p&&q){xs.push(v[i]/v[i-1]-1);ys.push(q/p-1);}}
+  const ret=v[n-1]/v[0]-1,rb=b1/b0-1,anos=(n-1)/252,ann=Math.pow(1+ret,1/anos)-1,bann=Math.pow(1+rb,1/anos)-1;
+  let te=null,cor=null,beta=null;
+  if(xs.length>20){const ex=xs.map((x,i)=>x-ys[i]),me=ex.reduce((a,c)=>a+c,0)/ex.length;te=Math.sqrt(ex.reduce((a,c)=>a+(c-me)**2,0)/(ex.length-1))*Math.sqrt(252);
+    if(b.tipo!=="taxa"){const mx=xs.reduce((a,c)=>a+c,0)/xs.length,my=ys.reduce((a,c)=>a+c,0)/ys.length;let c=0,vx=0,vy=0;for(let i=0;i<xs.length;i++){c+=(xs[i]-mx)*(ys[i]-my);vx+=(xs[i]-mx)**2;vy+=(ys[i]-my)**2;}cor=vx&&vy?c/Math.sqrt(vx*vy):null;beta=vy?c/vy:null;}}
+  return{b,ret:rb,ann:bann,exc:ret-rb,excAnn:ann-bann,rel:rb>0?ret/rb:null,te,ir:te>1e-9?(ann-bann)/te:null,cor,beta,bFim};
 }
 function fatorCDI(data){
   const c=BENCH&&BENCH.cdi;if(!c)return null;const ds=c.d;let lo=0,hi=ds.length;
@@ -326,7 +392,7 @@ function grafico(el,series,op){
     tip.hidden=false;const px=xx*r.width/W,tw=tip.offsetWidth;const left=px+12+tw>r.width?px-tw-12:px+12;tip.style.left=Math.max(0,left)+"px";tip.style.top="6px";});
   el.querySelector(".hit").addEventListener("pointerleave",()=>{tip.hidden=true;xh.setAttribute("visibility","hidden");});
 }
-function legenda(series){return'<div class="leg">'+series.map(s=>'<span><i class="'+(s.bench&&s.nome==="CDI"?"tr":"")+'" style="background:'+s.cor+'"></i>'+h(s.nome)+'</span>').join("")+'</div>';}
+function legenda(series){return'<div class="leg">'+series.map(s=>'<span><i class="'+(s.bench?"tr":"")+'" style="background:'+s.cor+';--c:'+s.cor+'"></i>'+h(s.nome)+(s.ate?' <span class="fraco">(até '+dt(s.ate)+')</span>':'')+'</span>').join("")+'</div>';}
 
 // ================================================================ busca (componente)
 function busca(el,op){
@@ -516,6 +582,7 @@ document.addEventListener("keydown",e=>{
 
 // ================================================================ F3 COMPARA
 const CORES=["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)","var(--s6)","var(--s7)","var(--s8)"];
+const BCORES=["var(--bench)","var(--texto)","var(--neg)","var(--pos)","var(--aviso)","var(--ciano)"];
 const MAXF=8;
 function estadoCompara(q){
   const st={f:(q.get("f")||"").split(",").filter(Boolean).slice(0,MAXF),j:q.get("j")||"12m",b:(q.has("b")?q.get("b"):"CDI").split(",").filter(Boolean),de:q.get("de")||"",ate:q.get("ate")||""};
@@ -535,7 +602,8 @@ async function telaCompara(r){
     <div class="chips" id="cmp-chips"></div>
     <div class="linha"><span class="rotulo">Janela</span><div class="seg" id="cmp-j"></div>
       <span class="rotulo" style="margin-left:10px">Período</span><input type="date" id="cmp-de" aria-label="Data inicial"> <span class="fraco">→</span> <input type="date" id="cmp-ate" aria-label="Data final"></div>
-    <div class="linha" style="justify-content:space-between"><div class="linha"><span class="rotulo">Benchmarks</span><div class="seg" id="cmp-b"><button type="button" data-b="CDI">CDI</button><button type="button" data-b="IBOV">IBOV</button></div></div><span class="rotulo" id="cmp-range"></span></div>
+    <div class="linha" style="justify-content:space-between"><span class="rotulo">Benchmarks</span><span class="rotulo" id="cmp-range"></span></div>
+    <div id="cmp-b"></div>
   </div></section>
   <div id="cmp-res" style="display:grid;gap:10px"></div>`;
   busca($("#cmp-busca"),{placeholder:"Buscar fundo por nome ou CNPJ…",escolher:f=>{if(st.f.length>=MAXF||st.f.includes(f.id))return;st.f.push(f.id);irCompara(st);}});
@@ -543,7 +611,8 @@ async function telaCompara(r){
   $("#cmp-chips").onclick=e=>{const b=e.target.closest("button[data-x]");if(b){st.f=st.f.filter(x=>x!==b.dataset.x);irCompara(st);}};
   $("#cmp-j").innerHTML=JANELAS.map(([k,l])=>'<button type="button" data-j="'+k+'" aria-pressed="'+(!st.de&&!st.ate&&st.j===k)+'">'+l+'</button>').join("");
   $("#cmp-j").onclick=e=>{const b=e.target.closest("button");if(b){st.j=b.dataset.j;st.de="";st.ate="";irCompara(st);}};
-  $("#cmp-b").querySelectorAll("button").forEach(b=>{b.setAttribute("aria-pressed",st.b.includes(b.dataset.b));b.onclick=()=>{st.b=st.b.includes(b.dataset.b)?st.b.filter(x=>x!==b.dataset.b):st.b.concat(b.dataset.b);irCompara(st);};});
+  st.b=benchValidos(st.b);
+  seletorBench($("#cmp-b"),st.b,l=>{st.b=l;irCompara(st);});
   $("#cmp-de").value=st.de;$("#cmp-ate").value=st.ate;
   $("#cmp-de").onchange=e=>{st.de=e.target.value;irCompara(st);};$("#cmp-ate").onchange=e=>{st.ate=e.target.value;irCompara(st);};
   const res=$("#cmp-res");
@@ -558,8 +627,9 @@ async function telaCompara(r){
     const w=recorta(f.d,f.q,ini,fim);
     series.push({id:f.id,nome:f.nome,cor:CORES[i],d:w.d,v:w.v.map(x=>x/w.v[0]-1),bruto:w,f,m:metricas(w.d,w.v,ibovMap)});});
   const bs=[];
-  if(st.b.includes("CDI")&&BENCH.cdi){const w=recorta(BENCH.cdi.d,BENCH.cdi.v,ini,fim);if(w.d.length>1)bs.push({nome:"CDI",cor:"var(--bench)",bench:true,d:w.d,v:w.v.map(x=>x/w.v[0]-1)});}
-  if(st.b.includes("IBOV")&&BENCH.ibov){const w=recorta(BENCH.ibov.d,BENCH.ibov.v,ini,fim);if(w.d.length>1)bs.push({nome:"IBOV",cor:"var(--texto)",bench:true,d:w.d,v:w.v.map(x=>x/w.v[0]-1)});}
+  const fimF=series.map(s=>s.d[s.d.length-1]).filter(Boolean).sort().pop()||fim;
+  const iniB=series.length?series.map(s=>s.d[0]).filter(Boolean).sort()[0]:ini;
+  st.b.forEach((id,i)=>{const b=serieBench(id);const w=recorta(b.d,b.v,iniB,fim);if(w.d.length>1)bs.push({nome:b.nome,cor:BCORES[i%BCORES.length],bench:true,b,d:w.d,v:w.v.map(x=>x/w.v[0]-1),ate:atraso(w.d[w.d.length-1],fimF)});});
   const inis=series.map(s=>s.d[0]).filter(Boolean).sort();
   $("#cmp-range").textContent=(inis.length?dt(inis[0]):ini?dt(ini):"início")+" → "+dt(fim);
   const rotJ=st.de||st.ate?"período":"janela "+(JANELAS.find(x=>x[0]===st.j)||[0,""])[1];
@@ -587,6 +657,8 @@ async function telaCompara(r){
     ["Downside deviation",s=>s.m&&s.m.downside,x=>pct(x,false),-1],["Sharpe",s=>s.m&&s.m.sharpe,num,1],["Sortino",s=>s.m&&s.m.sortino,num,1],
     ["Drawdown máximo",s=>s.m&&s.m.mdd,pct,1],["Data do vale",s=>s.m&&s.m.vale,dt,0],["VaR 95% diário",s=>s.m&&s.m.var95,pct,1],
     ["Melhor dia",s=>s.m&&s.m.melhor,pct,1],["Pior dia",s=>s.m&&s.m.pior,pct,1],["Beta (Ibovespa)",s=>s.m&&s.m.beta,num,0],["Alfa de Jensen (a.a.)",s=>s.m&&s.m.alfa,pct,1],
+    ...(bs.length?[["sec","Contra benchmarks"]].concat(bs.flatMap(x=>{const cb=s=>s.cb||(s.cb={}),g=s=>cb(s)[x.b.id]||(cb(s)[x.b.id]=contraBench(s.bruto.d,s.bruto.v,x.b));
+      return[["Excesso vs "+x.b.nome+" (p.p.)",s=>{const r=g(s);return r&&r.exc;},pp,1],["Tracking error vs "+x.b.nome,s=>{const r=g(s);return r&&r.te;},x2=>pct(x2,false),-1],["Information ratio vs "+x.b.nome,s=>{const r=g(s);return r&&r.ir;},num,1]];})):[]),
     ["sec","Estrutura do produto"],
     ["Patrimônio líquido",s=>s.f.pl,brl,1],["PL médio no período",s=>plMedio(s.f,s.d[0],fim),brl,0],["Cotistas",s=>s.f.cotistas,x=>x==null?"—":nf0.format(x),0],
     ["Pregões na janela",s=>s.m&&s.m.pregoes,x=>x==null?"—":nf0.format(x),0],["Início do fundo",s=>s.f.inicio,dt,0],["Série na base",s=>s.f.primeira,dt,0],
@@ -600,7 +672,7 @@ async function telaCompara(r){
     if(l[0]==="sec"){t+='<tr class="sec"><td colspan="'+(series.length+1)+'">'+l[1]+'</td></tr>';continue;}
     const vals=series.map(l[1]);let bi=-1;
     if(l[3]&&series.length>1){let bv=null;vals.forEach((v,i)=>{if(v==null||!isFinite(v))return;if(bv==null||(l[3]>0?v>bv:v<bv)){bv=v;bi=i;}});}
-    t+='<tr><td class="lbl">'+l[0]+'</td>'+vals.map((v,i)=>'<td class="'+(i===bi?"melhor ":"")+(cor.has(l[0])?cls(v):"")+'">'+h(l[2](v))+'</td>').join("")+'</tr>';
+    t+='<tr><td class="lbl">'+l[0]+'</td>'+vals.map((v,i)=>'<td class="'+(i===bi?"melhor ":"")+(cor.has(l[0])||l[0].startsWith("Excesso")?cls(v):"")+'">'+h(l[2](v))+'</td>').join("")+'</tr>';
   }
   $("#cmp-t").innerHTML=t+'</tbody>';
   if(series.length>1){
@@ -737,7 +809,8 @@ async function telaFundo(r){
   const [f]=await Promise.all([ficha(id).catch(()=>null),meta(),benchs()]);
   if(!f){app.innerHTML='<section class="painel aviso"><div class="cab">Fundo não encontrado</div><div class="corpo">Não há dados para "'+h(id)+'". Use o ranking (F2) ou a busca da comparação (F3).</div></section>';return;}
   const aba=q.get("aba")||"desempenho",jan=q.get("j")||"12m",de=q.get("de")||"",ate=q.get("ate")||"";
-  const link=o=>{const p=new URLSearchParams({aba,j:jan});if(de)p.set("de",de);if(ate)p.set("ate",ate);for(const k in o){if(o[k]==="")p.delete(k);else p.set(k,o[k]);}return"#/fundo/"+encodeURIComponent(id)+"?"+p.toString();};
+  const bq=q.get("b");
+  const link=o=>{const p=new URLSearchParams({aba,j:jan});if(de)p.set("de",de);if(ate)p.set("ate",ate);if(bq!=null)p.set("b",bq);for(const k in o){if(o[k]==="")p.delete(k);else p.set(k,o[k]);}return"#/fundo/"+encodeURIComponent(id)+"?"+p.toString();};
   const k=(rot,val)=>'<div><div class="k">'+rot+'</div><div class="v">'+val+'</div></div>';
   app.innerHTML=`
   <section class="painel"><div class="cab"><span style="color:var(--texto)">${estrela(f.id)}${h(f.nome)}</span><span class="linha">${seletorCesta("fd-cst")}<a class="btn" href="#" id="fd-cmp">Comparar ▸</a></span></div><div class="corpo">
@@ -775,42 +848,60 @@ async function telaFundo(r){
   if(!f.d){c.innerHTML='<section class="painel aviso"><div class="cab">Informação não disponível</div><div class="corpo"><div>Este fundo não publica informe diário na CVM. '+(f.estruturado?"FIDC, FII, FIP e Fiagro reportam por documento periódico mensal. ":"")+'O patrimônio declarado no cadastro é '+brl(f.pl)+(f.data_pl?" ("+dt(f.data_pl)+")":"")+'. Veja a aba Cadastro.</div></div></section>';return;}
   const fim=ate||f.ultima;const ini=de||(jan==="max"?null:inicioJanela(fim,jan));
   const w=recorta(f.d,f.q,ini,fim);
+  const bsel=bq!=null?benchValidos(bq.split(",")):padraoBench(f);
+  const bser=bsel.map(serieBench);
+  const vsB=bser.map(b=>contraBench(w.d,w.v,b));
   let ibovMap=null;if(BENCH.ibov&&w.d.length){const b=recorta(BENCH.ibov.d,BENCH.ibov.v,w.d[0],fim);ibovMap=retornosDiarios(b.d,b.v);}
   const mt=metricas(w.d,w.v,ibovMap);
   const rot=de||ate?"período":(JANELAS.find(x=>x[0]===jan)||[0,""])[1];
   c.innerHTML=`<section class="painel"><div class="corpo"><div class="linha"><span class="rotulo">Janela</span><div class="seg" id="fd-j">${JANELAS.map(([kk,l])=>'<button type="button" data-j="'+kk+'" aria-pressed="'+(!de&&!ate&&jan===kk)+'">'+l+'</button>').join("")}</div>
-    <span class="rotulo" style="margin-left:10px">Período</span><input type="date" id="fd-de" value="${h(de)}" aria-label="Data inicial"> <span class="fraco">→</span> <input type="date" id="fd-ate" value="${h(ate)}" aria-label="Data final"></div></div></section>
+    <span class="rotulo" style="margin-left:10px">Período</span><input type="date" id="fd-de" value="${h(de)}" aria-label="Data inicial"> <span class="fraco">→</span> <input type="date" id="fd-ate" value="${h(ate)}" aria-label="Data final"></div>
+    <div class="linha"><span class="rotulo">Benchmarks</span><span class="fraco">${bq==null?"padrão: CDI"+(bsel.length>1?" e o indicador de desempenho do fundo":""):""}</span></div><div id="fd-b"></div></div></section>
   <section class="painel"><div class="cab">Histórico de cotas<span class="linha"><select id="fd-xp" aria-label="Período da exportação"><option value="janela">Período do gráfico (${h(w.d.length?dt(w.d[0])+" → "+dt(w.d[w.d.length-1]):"—")})</option><option value="tudo">Histórico completo (${h(dt(f.d[0])+" → "+dt(f.d[f.d.length-1]))})</option></select>${botoesExportar("fd-x")}</span></div></section>
   <section class="painel"><div class="cab">Rentabilidade acumulada · ${h(rot)}</div><div class="corpo"><div class="grafico" id="fd-g"></div><div id="fd-leg"></div></div></section>
   <section class="painel"><div class="cab">Indicadores · ${h(rot)}${mt?" · "+dt(mt.ini)+" → "+dt(mt.fim)+" · "+nf0.format(mt.pregoes)+" pregões":""}</div><div class="corpo"><div class="kv">
     ${mt?[["Retorno",'<span class="'+cls(mt.ret)+'">'+pct(mt.ret)+'</span>'],["Anualizado",'<span class="'+cls(mt.ann)+'">'+pct(mt.ann)+'</span>'],["% do CDI",mt.pcdi==null||!isFinite(mt.pcdi)?"—":nf0.format(mt.pcdi*100).replace("-","−")+"% do CDI"],["Volatilidade",pct(mt.vol,false)],["Sharpe",num(mt.sharpe)],["Sortino",num(mt.sortino)],["Downside",pct(mt.downside,false)],["Drawdown",'<span class="'+cls(mt.mdd)+'">'+pct(mt.mdd)+'</span>'],["Data do vale",dt(mt.vale)],["VaR 95%",pct(mt.var95)],["Beta",num(mt.beta)],["Alfa (Jensen)",pct(mt.alfa)],["Cotistas",f.cotistas==null?"—":nf0.format(f.cotistas)]].map(([a,b])=>k(a,b)).join(""):'<div class="fraco">Sem cotas suficientes no período.</div>'}
   </div></div></section>
+  ${bser.length&&mt?`<section class="painel"><div class="cab">Fundo contra benchmarks · ${h(rot)}<span class="sub">mesmas datas do fundo</span></div><div class="tw"><table id="fd-vb"></table></div></section>`:""}
   ${f.sem?`<section class="painel"><div class="cab">Patrimônio líquido<span class="sub">mesma janela do gráfico acima</span></div><div class="corpo"><div class="grafico" id="fd-pl"></div></div></section>
   <section class="painel"><div class="cab">Número de cotistas</div><div class="corpo"><div class="grafico" id="fd-ct"></div></div></section>`:""}
   <section class="painel"><div class="cab">Retorno mês a mês</div><div class="tw"><table id="fd-m"></table></div></section>`;
   $("#fd-j").onclick=e=>{const b=e.target.closest("button");if(b)ir(link({j:b.dataset.j,de:"",ate:""}));};
   $("#fd-de").onchange=e=>ir(link({de:e.target.value}));$("#fd-ate").onchange=e=>ir(link({ate:e.target.value}));
+  seletorBench($("#fd-b"),bsel,l=>ir(link({b:l.join(",")||"-"})));
+  if($("#fd-vb")){
+    let t='<thead><tr><th class="l">Benchmark</th><th>Retorno</th><th>Anualizado</th><th>Fundo − bench</th><th>Fundo − bench (a.a.)</th><th>% do bench</th><th>Tracking error</th><th>Information ratio</th><th>Correlação</th><th>Beta</th></tr></thead><tbody>';
+    t+='<tr><td class="l" style="color:var(--s1)">'+h(f.nome.slice(0,40))+'</td><td class="'+cls(mt.ret)+'">'+pct(mt.ret)+'</td><td class="'+cls(mt.ann)+'">'+pct(mt.ann)+'</td><td colspan="7"></td></tr>';
+    vsB.forEach((r,i)=>{const b=bser[i];if(!r){t+='<tr><td class="l">'+h(b.nome)+'</td><td colspan="9" class="fraco">sem dados do benchmark no período</td></tr>';return;}
+      const fimB=atraso(r.bFim,w.d[w.d.length-1]);
+      t+='<tr><td class="l" title="'+h(b.fonte||"")+'"><i style="display:inline-block;width:14px;height:2px;margin-right:6px;vertical-align:middle;background:repeating-linear-gradient(90deg,'+CORES[i+1]+' 0 4px,transparent 4px 7px)"></i>'+h(b.nome)+(fimB?' <span class="fraco">(série até '+dt(fimB)+')</span>':"")+'</td><td class="'+cls(r.ret)+'">'+pct(r.ret)+'</td><td class="'+cls(r.ann)+'">'+pct(r.ann)+'</td><td class="'+cls(r.exc)+'">'+pp(r.exc)+'</td><td class="'+cls(r.excAnn)+'">'+pp(r.excAnn)+'</td><td>'+(r.rel==null||!isFinite(r.rel)?"—":nf0.format(r.rel*100).replace("-","−")+"%")+'</td><td>'+pct(r.te,false)+'</td><td>'+num(r.ir)+'</td><td>'+num(r.cor)+'</td><td>'+num(r.beta)+'</td></tr>';});
+    $("#fd-vb").innerHTML=t+'</tbody>';
+  }
   ligaExportar("fd-x",async()=>{
     const tudo=$("#fd-xp").value==="tudo",dd=tudo?f.d:w.d,qq=tudo?f.q:w.v;if(!dd.length)throw new Error("Sem cotas no período.");
     const c0=fatorCDI(dd[0]),pc=x=>x==null?null:Math.round(x*1e8)/1e6;
-    const linhas=dd.map((x,i)=>{const fc=fatorCDI(x);return[x,sig8(qq[i]),i?pc(qq[i]/qq[i-1]-1):null,pc(qq[i]/qq[0]-1),c0&&fc?pc(fc/c0-1):null];});
-    exportarCSV("cotas_"+f.cnpj+(f.sub?"_"+f.sub:"")+"_"+dd[0]+"_"+dd[dd.length-1]+".csv",["Data","Cota","Retorno diário (%)","Retorno acumulado (%)","CDI acumulado (%)"],linhas);
+    const outros=bser.filter(b=>b.id!=="CDI"),o0=outros.map(b=>valorEm(b,dd[0]));
+    const linhas=dd.map((x,i)=>{const fc=fatorCDI(x);return[x,sig8(qq[i]),i?pc(qq[i]/qq[i-1]-1):null,pc(qq[i]/qq[0]-1),c0&&fc?pc(fc/c0-1):null].concat(outros.map((b,j)=>{const y=b.d[b.d.length-1]>=x?valorEm(b,x):null;return o0[j]&&y?pc(y/o0[j]-1):null;}));});
+    exportarCSV("cotas_"+f.cnpj+(f.sub?"_"+f.sub:"")+"_"+dd[0]+"_"+dd[dd.length-1]+".csv",["Data","Cota","Retorno diário (%)","Retorno acumulado (%)","CDI acumulado (%)"].concat(outros.map(b=>b.nome+" acumulado (%)")),linhas);
   });
   const ss=[{nome:f.nome,cor:"var(--s1)",d:w.d,v:w.v.map(x=>x/w.v[0]-1)}];
-  if(BENCH.cdi&&w.d.length){const b=recorta(BENCH.cdi.d,BENCH.cdi.v,w.d[0],fim);if(b.d.length>1)ss.push({nome:"CDI",cor:"var(--bench)",bench:true,d:b.d,v:b.v.map(x=>x/b.v[0]-1)});}
+  if(w.d.length)bser.forEach((bb,i)=>{const b=recorta(bb.d,bb.v,w.d[0],fim);if(b.d.length>1)ss.push({nome:bb.nome,cor:CORES[(i+1)%CORES.length],bench:true,d:b.d,v:b.v.map(x=>x/b.v[0]-1),ate:atraso(b.d[b.d.length-1],w.d[w.d.length-1])});});
   grafico($("#fd-g"),ss,{titulo:"Rentabilidade acumulada"});$("#fd-leg").innerHTML=legenda(ss);
   if(f.sem&&w.d.length){
     const p=recorta(f.sem.d,f.sem.p,w.d[0],fim),ct=recorta(f.sem.d,f.sem.c,w.d[0],fim);
     grafico($("#fd-pl"),[{nome:"PL",cor:"var(--pos)",d:p.d,v:p.v}],{fmt:brl,area:true,altura:180,margemEsq:82,titulo:"Patrimônio líquido"});
     grafico($("#fd-ct"),[{nome:"Cotistas",cor:"var(--ciano)",d:ct.d,v:ct.v}],{fmt:y=>nf0.format(y),area:true,altura:160,margemEsq:70,titulo:"Cotistas"});
   }
-  const porMes=new Map();let q0=f.q[0],d0=f.d[0];
-  for(let i=1;i<f.d.length;i++){if(i===f.d.length-1||f.d[i+1].slice(0,7)!==f.d[i].slice(0,7)){porMes.set(f.d[i].slice(0,7),{r:f.q[i]/q0-1,c:retCDI(d0,f.d[i])});q0=f.q[i];d0=f.d[i];}}
+  const porMes=new Map(),limAno=new Map();let q0=f.q[0],d0=f.d[0];
+  for(let i=1;i<f.d.length;i++){if(i===f.d.length-1||f.d[i+1].slice(0,7)!==f.d[i].slice(0,7)){porMes.set(f.d[i].slice(0,7),{r:f.q[i]/q0-1});const a=f.d[i].slice(0,4);if(!limAno.has(a))limAno.set(a,[d0,f.d[i]]);else limAno.get(a)[1]=f.d[i];q0=f.q[i];d0=f.d[i];}}
   const anos=[...new Set([...porMes.keys()].map(x=>x.slice(0,4)))].sort().reverse();
-  let t='<thead><tr><th class="l">Ano</th>'+MES.map(x=>'<th>'+x+'</th>').join("")+'<th>Ano %</th><th>CDI %</th></tr></thead><tbody>';
-  for(const a of anos){let ra=1,ca=1,tc=true;t+='<tr><td class="l" style="color:var(--ambar)">'+a+'</td>';
-    for(let mm=1;mm<=12;mm++){const x=porMes.get(a+"-"+String(mm).padStart(2,"0"));if(x){ra*=1+x.r;if(x.c!=null)ca*=1+x.c;else tc=false;}t+='<td class="'+(x?cls(x.r):"")+'">'+(x?pct(x.r):"—")+'</td>';}
-    t+='<td class="'+cls(ra-1)+'" style="font-weight:700">'+pct(ra-1)+'</td><td class="fraco">'+(tc?pct(ca-1):"—")+'</td></tr>';}
+  const bAno=bser.length?bser:[serieBench("CDI")].filter(Boolean);
+  let t='<thead><tr><th class="l">Ano</th>'+MES.map(x=>'<th>'+x+'</th>').join("")+'<th>Ano %</th>'+bAno.map(b=>'<th title="'+h(b.fonte||"")+'">'+h(b.nome)+' %</th>').join("")+'</tr></thead><tbody>';
+  for(const a of anos){let ra=1;t+='<tr><td class="l" style="color:var(--ambar)">'+a+'</td>';
+    for(let mm=1;mm<=12;mm++){const x=porMes.get(a+"-"+String(mm).padStart(2,"0"));if(x)ra*=1+x.r;t+='<td class="'+(x?cls(x.r):"")+'">'+(x?pct(x.r):"—")+'</td>';}
+    const lim=limAno.get(a);
+    t+='<td class="'+cls(ra-1)+'" style="font-weight:700">'+pct(ra-1)+'</td>'+bAno.map(b=>{const v0=valorEm(b,lim[0]),bf=b.d[b.d.length-1],fimA=bf<lim[1]?bf:lim[1],v1=valorEm(b,fimA);
+      if(!v0||!v1||b.d[0]>lim[0]||fimA<=lim[0])return'<td class="fraco">—</td>';const part=atraso(bf,lim[1]);return'<td class="fraco"'+(part?' title="série até '+dt(part)+'"':'')+'>'+pct(v1/v0-1)+(part?"*":"")+'</td>';}).join("")+'</tr>';}
   $("#fd-m").innerHTML=t+'</tbody>';
 }
 
@@ -897,7 +988,7 @@ function aplicaTema(t){if(t==="claro")document.documentElement.setAttribute("dat
 aplicaTema(ls("lupa-tema")||"claro");
 temaBtn.onclick=()=>{const t=document.documentElement.getAttribute("data-tema")==="claro"?"escuro":"claro";ls("lupa-tema",t);aplicaTema(t);render();};
 meta().then(m=>{$("#st-dados").textContent="Dados até "+dt(m.ultima_cota);$("#st-series").textContent=nf0.format(m.fundos)+" fundos · "+nf0.format(m.com_serie_diaria||0)+" séries diárias";
-  $("#rodape").textContent="Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI: "+(m.fontes&&m.fontes.cdi||"—")+" · Ibovespa: "+(m.fontes&&m.fontes.ibov||"—")+" · Atualizado em "+new Date(m.atualizado).toLocaleString("pt-BR")+" · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento";}).catch(()=>{});
+  $("#rodape").textContent="Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI: "+(m.fontes&&m.fontes.cdi||"—")+" · Ibovespa: "+(m.fontes&&m.fontes.ibov||"—")+" · Demais benchmarks: B3 (Small Caps, IDIV, IFIX), ANBIMA (IMA, IRF-M, IHFA), Ipeadata (IPCA, IGP-M, dólar PTAX) e Yahoo Finance (S&P 500)"+" · Atualizado em "+new Date(m.atualizado).toLocaleString("pt-BR")+" · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento";}).catch(()=>{});
 let rz;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(rotaAtual==="compara"||rotaAtual==="fundo")render();},250);});
 render();
 })();
