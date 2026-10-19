@@ -379,14 +379,14 @@ document.addEventListener("click",e=>{
   if(rotaAtual==="painel")render();
 },true);
 const novoId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-function novaCesta(nome,fundos){const c={id:novoId(),nome:nome||"Nova cesta",fundos:[...new Set(fundos||[])],criada:new Date().toISOString().slice(0,10)};PAINEL.cestas.push(c);salvaPainel();return c;}
+function novaCesta(nome,fundos){const c={id:novoId(),nome:nome||"Novo peer group",fundos:[...new Set(fundos||[])],criada:new Date().toISOString().slice(0,10)};PAINEL.cestas.push(c);salvaPainel();return c;}
 function adicionaNaCesta(c,ids){let n=0;ids.forEach(i=>{if(!c.fundos.includes(i)){c.fundos.push(i);n++;}});salvaPainel();return n;}
-function seletorCesta(id){return'<select class="sel-cesta" id="'+id+'" aria-label="Adicionar à cesta"><option value="">Adicionar à cesta…</option>'+PAINEL.cestas.map(c=>'<option value="'+h(c.id)+'">'+h(c.nome)+' ('+c.fundos.length+')</option>').join("")+'<option value="__nova">+ Nova cesta…</option></select>';}
+function seletorCesta(id){return'<select class="sel-cesta" id="'+id+'" aria-label="Adicionar ao peer group"><option value="">Adicionar ao peer group…</option>'+PAINEL.cestas.map(c=>'<option value="'+h(c.id)+'">'+h(c.nome)+' ('+c.fundos.length+')</option>').join("")+'<option value="__nova">+ Novo peer group…</option></select>';}
 function ligaSeletorCesta(el,obterIds){if(!el)return;el.onchange=()=>{
   const v=el.value;el.value="";const ids=obterIds();if(!ids.length){toast("Selecione ao menos um fundo.");return;}
-  let c;if(v==="__nova"){const nome=(prompt("Nome da nova cesta:")||"").trim();if(!nome)return;c=novaCesta(nome,[]);}else c=PAINEL.cestas.find(x=>x.id===v);
+  let c;if(v==="__nova"){const nome=(prompt("Nome do novo peer group:")||"").trim();if(!nome)return;c=novaCesta(nome,[]);}else c=PAINEL.cestas.find(x=>x.id===v);
   if(!c)return;const n=adicionaNaCesta(c,ids);
-  toast(n?n+(n===1?" fundo adicionado":" fundos adicionados")+" à cesta "+c.nome:"Esses fundos já estavam na cesta "+c.nome);
+  toast(n?n+(n===1?" fundo adicionado":" fundos adicionados")+" ao peer group "+c.nome:"Esses fundos já estavam no peer group "+c.nome);
   const novo=document.createElement("div");novo.innerHTML=seletorCesta(el.id);el.innerHTML=novo.firstChild.innerHTML;
 };}
 function linkCesta(c){return location.href.split("#")[0]+"#/painel?"+new URLSearchParams({cesta:c.nome,f:c.fundos.join(",")}).toString();}
@@ -421,7 +421,7 @@ function tabelaResumo(rows,op){
       '<td class="l">'+h(r.classe)+'</td><td>'+(r.ultima?(r.mensal?r.ultima.slice(5,7)+"/"+r.ultima.slice(0,4):dt(r.ultima)):"—")+'</td>'+
       (r.mensal?'<td>—</td>':col(r.dia))+col(r.r1m)+col(r.ano)+col(r.r12)+
       '<td>'+(r.pcdi==null||!isFinite(r.pcdi)?"—":nf0.format(r.pcdi*100).replace("-","−")+"%")+'</td><td>'+pct(r.vol,false)+'</td><td>'+brl(r.pl)+'</td>'+
-      (op.remover?'<td><button type="button" class="chip-x" data-rm="'+h(r.id)+'" aria-label="Tirar da cesta" title="Tirar da cesta" style="border:0;background:none;color:var(--neg);cursor:pointer">×</button></td>':'')+'</tr>';
+      (op.remover?'<td><button type="button" class="chip-x" data-rm="'+h(r.id)+'" aria-label="Tirar do peer group" title="Tirar do peer group" style="border:0;background:none;color:var(--neg);cursor:pointer">×</button></td>':'')+'</tr>';
   }
   if(!rows.length)t+='<tr><td colspan="12" class="l fraco">'+(op.vazio||"Nenhum fundo.")+'</td></tr>';
   return t+'</tbody>';
@@ -434,22 +434,22 @@ async function telaPainel(r){
   const compartilhada=cn&&cf.length?{nome:cn,fundos:cf}:null;
   app.innerHTML=`
   <section class="painel"><div class="cab">Meu painel<span class="linha"><span class="sub">salvo neste navegador</span><button type="button" class="btn" id="pn-exp">Exportar painel</button><label class="btn" style="cursor:pointer">Importar painel<input type="file" id="pn-imp" accept=".json,application/json" hidden></label></span></div>
-    <div class="corpo"><div class="fraco" style="font-size:11px">Favoritos e cestas ficam guardados só neste navegador, e ninguém mais vê. Para levar para outro aparelho, use o link de cada cesta ou exporte o painel e importe do outro lado.</div></div></section>
-  ${compartilhada?`<section class="painel aviso"><div class="cab">Cesta compartilhada<span class="linha"><button class="btn" id="pn-sv">Salvar no meu painel</button><button class="btn" id="pn-cmpc">Comparar ▸</button></span></div><div class="corpo"><div><b style="color:var(--texto)">${h(compartilhada.nome)}</b> · ${compartilhada.fundos.length} fundos</div><div class="tw"><table id="pn-ct"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`:""}
+    <div class="corpo"><div class="fraco" style="font-size:11px">Favoritos e peer groups ficam guardados só neste navegador, e ninguém mais vê. Para levar para outro aparelho, use o link de cada peer group ou exporte o painel e importe do outro lado.</div></div></section>
+  ${compartilhada?`<section class="painel aviso"><div class="cab">Peer group compartilhado<span class="linha"><button class="btn" id="pn-sv">Salvar no meu painel</button><button class="btn" id="pn-cmpc">Comparar ▸</button></span></div><div class="corpo"><div><b style="color:var(--texto)">${h(compartilhada.nome)}</b> · ${compartilhada.fundos.length} fundos</div><div class="tw"><table id="pn-ct"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`:""}
   <section class="painel"><div class="cab">Favoritos · ${PAINEL.fav.length}<span class="linha"><span class="sub" id="pn-fsel">0 selecionados</span><button class="btn" id="pn-fcmp" disabled>Comparar ▸</button>${seletorCesta("pn-fcst")}</span></div>
     <div class="tw"><table id="pn-ft"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></section>
-  <section class="painel"><div class="cab">Cestas · ${PAINEL.cestas.length}<button type="button" class="btn" id="pn-nova">+ Nova cesta</button></div>
+  <section class="painel"><div class="cab">Peer groups · ${PAINEL.cestas.length}<button type="button" class="btn" id="pn-nova">+ Novo peer group</button></div>
     <div class="corpo" id="pn-cestas"></div></section>`;
   // exportar / importar
   $("#pn-exp").onclick=()=>salvarArquivo("lupa-painel.json",new Blob([JSON.stringify({versao:1,exportado:new Date().toISOString(),fav:PAINEL.fav,cestas:PAINEL.cestas},null,1)],{type:"application/json"}));
   $("#pn-imp").onchange=async e=>{const arq=e.target.files[0];if(!arq)return;try{const x=JSON.parse(await arq.text());let nf=0,nc=0;
     (x.fav||[]).forEach(id=>{if(!PAINEL.fav.includes(id)){PAINEL.fav.push(id);nf++;}});
-    (x.cestas||[]).forEach(c=>{if(!c||!Array.isArray(c.fundos))return;if(!PAINEL.cestas.some(y=>y.id===c.id)){PAINEL.cestas.push({id:c.id||novoId(),nome:c.nome||"Cesta",fundos:c.fundos,criada:c.criada||""});nc++;}});
-    salvaPainel();toast("Importado: "+nf+" favoritos e "+nc+" cestas novas");render();}catch(err){toast("Arquivo inválido. Use um arquivo exportado pelo próprio site.");}};
+    (x.cestas||[]).forEach(c=>{if(!c||!Array.isArray(c.fundos))return;if(!PAINEL.cestas.some(y=>y.id===c.id)){PAINEL.cestas.push({id:c.id||novoId(),nome:c.nome||"Peer group",fundos:c.fundos,criada:c.criada||""});nc++;}});
+    salvaPainel();toast("Importado: "+nf+" favoritos e "+nc+" peer groups novos");render();}catch(err){toast("Arquivo inválido. Use um arquivo exportado pelo próprio site.");}};
   // cesta compartilhada
   if(compartilhada){
     const rows=await Promise.all(compartilhada.fundos.map(resumoFundo));$("#pn-ct").innerHTML=tabelaResumo(rows);
-    $("#pn-sv").onclick=()=>{novaCesta(compartilhada.nome,compartilhada.fundos);toast("Cesta salva no seu painel");ir("#/painel");};
+    $("#pn-sv").onclick=()=>{novaCesta(compartilhada.nome,compartilhada.fundos);toast("Peer group salvo no seu painel");ir("#/painel");};
     $("#pn-cmpc").onclick=()=>irCompara({f:compartilhada.fundos.slice(0,MAXF),j:"12m",b:["CDI"],de:"",ate:""});
   }
   // favoritos
@@ -460,9 +460,9 @@ async function telaPainel(r){
   $("#pn-fcmp").onclick=()=>irCompara({f:[...selF].slice(0,MAXF),j:"12m",b:["CDI"],de:"",ate:""});
   ligaSeletorCesta($("#pn-fcst"),()=>[...selF]);
   // cestas
-  $("#pn-nova").onclick=()=>{const nome=(prompt("Nome da nova cesta:")||"").trim();if(!nome)return;novaCesta(nome,[]);render();};
+  $("#pn-nova").onclick=()=>{const nome=(prompt("Nome do novo peer group:")||"").trim();if(!nome)return;novaCesta(nome,[]);render();};
   const box=$("#pn-cestas");
-  if(!PAINEL.cestas.length){box.innerHTML='<div class="vazio-painel"><div><b>Cestas são grupos de fundos que você monta</b>, por exemplo "Concorrentes do meu fundo", "Multimercados que acompanho" ou "FIIs de logística".</div><div>Crie uma cesta acima e adicione fundos pela busca dentro dela, ou marque fundos no ranking e use "Adicionar à cesta".</div></div>';return;}
+  if(!PAINEL.cestas.length){box.innerHTML='<div class="vazio-painel"><div><b>Peer groups são grupos de fundos que você monta</b>, por exemplo "Concorrentes do meu fundo", "Multimercados que acompanho" ou "FIIs de logística".</div><div>Crie um peer group acima e adicione fundos pela busca dentro dele, ou marque fundos no ranking e use "Adicionar ao peer group".</div></div>';return;}
   box.innerHTML=PAINEL.cestas.map((c,i)=>`<section class="painel" style="background:var(--fundo)"><div class="cab"><span class="cesta-cab"><span style="color:var(--texto)">${h(c.nome)}</span><span class="sub">${c.fundos.length} fundo${c.fundos.length===1?"":"s"}</span></span>
       <span class="linha"><button class="btn" data-a="cmp" data-c="${i}"${c.fundos.length?"":" disabled"}>Comparar ▸</button><button class="btn" data-a="lnk" data-c="${i}"${c.fundos.length?"":" disabled"}>Copiar link</button><button class="btn" data-a="ren" data-c="${i}">Renomear</button><button class="btn" data-a="del" data-c="${i}" style="color:var(--neg);border-color:var(--neg)">Excluir</button></span></div>
     <div class="corpo"><div id="pn-cb-${i}"></div><div class="tw"><table id="pn-c-${i}"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`).join("");
@@ -471,15 +471,15 @@ async function telaPainel(r){
     if(rm){const tb=rm.closest("table");const i=+tb.id.split("-").pop();const c=PAINEL.cestas[i];c.fundos=c.fundos.filter(x=>x!==rm.dataset.rm);salvaPainel();render();return;}
     const b=e.target.closest("button[data-a]");if(!b)return;const c=PAINEL.cestas[+b.dataset.c];if(!c)return;
     if(b.dataset.a==="cmp"){if(c.fundos.length>MAXF)toast("A comparação mostra até 8 fundos; abrindo os 8 primeiros.");irCompara({f:c.fundos.slice(0,MAXF),j:"12m",b:["CDI"],de:"",ate:""});}
-    else if(b.dataset.a==="lnk"){const ok=await copiar(linkCesta(c));if(ok)toast("Link da cesta copiado");}
-    else if(b.dataset.a==="ren"){const nome=(prompt("Novo nome da cesta:",c.nome)||"").trim();if(nome){c.nome=nome;salvaPainel();render();}}
-    else if(b.dataset.a==="del"){if(confirm('Excluir a cesta "'+c.nome+'"? Os fundos continuam nos favoritos, se estiverem lá.')){PAINEL.cestas.splice(+b.dataset.c,1);salvaPainel();render();}}
+    else if(b.dataset.a==="lnk"){const ok=await copiar(linkCesta(c));if(ok)toast("Link do peer group copiado");}
+    else if(b.dataset.a==="ren"){const nome=(prompt("Novo nome do peer group:",c.nome)||"").trim();if(nome){c.nome=nome;salvaPainel();render();}}
+    else if(b.dataset.a==="del"){if(confirm('Excluir o peer group "'+c.nome+'"? Os fundos continuam nos favoritos, se estiverem lá.')){PAINEL.cestas.splice(+b.dataset.c,1);salvaPainel();render();}}
   };
   for(let i=0;i<PAINEL.cestas.length;i++){
     const c=PAINEL.cestas[i];
-    busca($("#pn-cb-"+i),{placeholder:"Adicionar fundo a esta cesta (nome ou CNPJ)…",escolher:f=>{if(adicionaNaCesta(c,[f.id]))render();else toast("Esse fundo já está na cesta");}});
+    busca($("#pn-cb-"+i),{placeholder:"Adicionar fundo a este peer group (nome ou CNPJ)…",escolher:f=>{if(adicionaNaCesta(c,[f.id]))render();else toast("Esse fundo já está no peer group");}});
     const rows=await Promise.all(c.fundos.map(resumoFundo));
-    $("#pn-c-"+i).innerHTML=tabelaResumo(rows,{remover:true,vazio:"Cesta vazia. Use a busca acima para adicionar fundos."});
+    $("#pn-c-"+i).innerHTML=tabelaResumo(rows,{remover:true,vazio:"Peer group vazio. Use a busca acima para adicionar fundos."});
   }
 }
 

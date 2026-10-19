@@ -2,8 +2,8 @@
 
 Terminal de fundos de investimento brasileiros com dados públicos da CVM:
 
-- **F1 Painel**: favoritos (estrela ☆ em qualquer tela) e cestas de fundos personalizadas, salvos no navegador de cada pessoa. Cestas têm link para compartilhar; o painel inteiro pode ser exportado e importado. O site abre no Painel para quem já tem favoritos ou cestas, e no Ranking para os demais.
-- **F2 Ranking**: todos os fundos com filtros por universo, classe, situação, série e PL; colunas ordenáveis; seleção vai para a comparação ou para uma cesta.
+- **F1 Painel**: favoritos (estrela ☆ em qualquer tela) e peer groups de fundos personalizados, salvos no navegador de cada pessoa. Peer groups têm link para compartilhar; o painel inteiro pode ser exportado e importado. O site abre no Painel para quem já tem favoritos ou peer groups, e no Ranking para os demais.
+- **F2 Ranking**: todos os fundos com filtros por universo, classe, situação, série e PL; colunas ordenáveis; seleção vai para a comparação ou para um peer group.
 - **F3 Compara**: até 8 fundos lado a lado, janelas de 1M a MAX ou datas livres, mais de 30 indicadores (Sharpe, Sortino, VaR, beta, alfa de Jensen…), matriz de correlação e exportação em CSV.
 - **F4 Gestores e administradores**: número de fundos e PL total; ao escolher um, a lista dos fundos dele.
 - **F5 Estruturados**: FII, FIDC, FIP, Fiagro e afins, com PL, cotistas e rentabilidade mensal (informes mensais da CVM).
