@@ -212,6 +212,8 @@ let incluirCancelados=ls("lupa-canc")==="1";
 const cancelado=f=>f.situacao==="Cancelada"||(!f.ativo&&f.situacao==="Sem cadastro (só no informe)");
 const visivel=f=>incluirCancelados||!cancelado(f);
 async function listaVisivel(){const idx=await indice();return incluirCancelados?idx.lista:idx.lista.filter(visivel);}
+// Fundos líquidos: têm cota diária e não são estruturados (FII, FIDC, FIP, Fiagro e afins). Só eles entram no ranking e em F4.
+const liquido=f=>f.serie==="D"&&!TIPOS_EST.test(f.tipo||"")&&!TIPOS_EST.test(f.classe||"");
 
 // ================================================================ dados
 const DADOS="dados/";
@@ -796,7 +798,7 @@ function montarRanking(el,op){
       <div><div class="rotulo">Universo</div><div class="seg" id="rk-u">${UNIVERSOS.map(u=>'<button type="button" data-u="'+u[0]+'">'+u[1]+'</button>').join("")}</div></div>
       <div><div class="rotulo">Classe</div><select id="rk-c"><option value="">todas</option>${classes.map(c=>'<option>'+h(c)+'</option>').join("")}</select></div>
       <div><div class="rotulo">Situação</div><select id="rk-s"><option value="">todas</option>${sits.map(([s,n])=>'<option value="'+h(s)+'">'+h(s)+' ('+nf0.format(n)+')</option>').join("")}</select></div>
-      <div><div class="rotulo">Série</div><div class="seg" id="rk-se"><button type="button" data-s="todas">Todas</button><button type="button" data-s="diaria">Diária</button><button type="button" data-s="mensal">Só mensal</button></div></div>
+      <div${op.semSerie?" hidden":""}><div class="rotulo">Série</div><div class="seg" id="rk-se"><button type="button" data-s="todas">Todas</button><button type="button" data-s="diaria">Diária</button><button type="button" data-s="mensal">Só mensal</button></div></div>
       <div><div class="rotulo">PL mínimo (R$)</div><input type="number" id="rk-pl" min="0" step="1000000" placeholder="0" style="width:130px"></div>
       <div style="margin-left:auto;text-align:right"><div class="rotulo">População</div><div style="color:var(--ambar);font-size:16px;font-weight:700" id="rk-n">—</div><div class="fraco" style="font-size:10px" id="rk-nd"></div></div>
     </div>
@@ -838,22 +840,22 @@ function montarRanking(el,op){
   desenha();
 }
 async function telaRanking(){
-  const lista=await listaVisivel();
-  const F=filtrosPadrao();try{Object.assign(F,JSON.parse(ls("lupa-rk")||"{}"));}catch(e){}
+  const lista=(await listaVisivel()).filter(liquido);
+  const F=filtrosPadrao();try{Object.assign(F,JSON.parse(ls("lupa-rk")||"{}"));}catch(e){}F.serie="todas";
   if(!incluirCancelados&&F.sit==="Cancelada")F.sit="";
   app.innerHTML='<div id="rk" style="display:grid;gap:10px"></div>';
-  montarRanking($("#rk"),{lista,F,titulo:"Filtros",aoMudar:x=>ls("lupa-rk",JSON.stringify(x))});
+  montarRanking($("#rk"),{lista,F,titulo:"Filtros · só fundos líquidos (estruturados ficam em F5)",semSerie:true,aoMudar:x=>ls("lupa-rk",JSON.stringify(x))});
 }
 
 // ================================================================ F3 GESTORES / F4 ADMINISTRADORES
 async function telaGrupos(r,campo){
-  const listaV=await listaVisivel();const nomeTela=campo==="gestor"?"Gestores":"Administradores",sing=campo==="gestor"?"gestor":"administrador";
+  const listaV=(await listaVisivel()).filter(liquido);const nomeTela=campo==="gestor"?"Gestores":"Administradores",sing=campo==="gestor"?"gestor":"administrador";
   const grupos=new Map();
   for(const f of listaV){const g=f[campo];if(!g)continue;let o=grupos.get(g);if(!o){o={nome:g,n:0,at:0,pl:0};grupos.set(g,o);}o.n++;if(f.ativo){o.at++;if(f.pl>0)o.pl+=f.pl;}}
   const lista=[...grupos.values()];const st={q:"",ord:"pl",dir:-1};
   const escolhido=r.arg||"";
   app.innerHTML=`<div class="abas"><a class="btn" href="#/gestores" style="${campo==="gestor"?"background:var(--ambar);color:var(--fundo)":""}">Gestores</a><a class="btn" href="#/administradores" style="margin-left:-1px;${campo==="admin"?"background:var(--ambar);color:var(--fundo)":""}">Administradores</a></div>
-  <section class="painel"><div class="cab">${nomeTela} · busca<span class="sub">${nf0.format(lista.length)} ${nomeTela.toLowerCase()}</span></div><div class="corpo"><div class="prompt"><input type="search" id="gr-q" placeholder="Buscar ${nomeTela.toLowerCase()} por nome…" aria-label="Buscar"></div></div>
+  <section class="painel"><div class="cab">${nomeTela} · busca<span class="sub">${nf0.format(lista.length)} ${nomeTela.toLowerCase()} · só fundos líquidos</span></div><div class="corpo"><div class="prompt"><input type="search" id="gr-q" placeholder="Buscar ${nomeTela.toLowerCase()} por nome…" aria-label="Buscar"></div></div>
     <div class="tw lista"><table id="gr-t"></table></div></section><div id="gr-f" style="display:grid;gap:10px"></div>`;
   function desenha(){
     const tk=norm(st.q).split(/\s+/).filter(Boolean),okG=casaNome(st.q);
@@ -868,7 +870,7 @@ async function telaGrupos(r,campo){
   desenha();
   const alvo=$("#gr-f");
   if(!escolhido){alvo.innerHTML='<section class="painel"><div class="cab">Fundos</div><div class="corpo"><div class="fraco">Escolha um '+sing+' acima para ver os fundos sob sua responsabilidade. Os filtros são os mesmos do ranking, e a seleção leva os fundos para a comparação.</div></div></section>';return;}
-  montarRanking(alvo,{lista:listaV,fixo:f=>f[campo]===escolhido,F:filtrosPadrao(),titulo:"Fundos · "+escolhido});
+  montarRanking(alvo,{lista:listaV,fixo:f=>f[campo]===escolhido,F:filtrosPadrao(),titulo:"Fundos · "+escolhido,semSerie:true});
   const sel=document.querySelector("#gr-t tr.sel");if(sel)sel.scrollIntoView({block:"nearest"});
 }
 
