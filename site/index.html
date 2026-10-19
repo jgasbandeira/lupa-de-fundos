@@ -404,9 +404,9 @@ function grafico(el,series,op){
 }
 // Captação e resgate mensais (arquivo em R$ mil) → {m:["AAAA-MM"], c, r} em R$
 function expandeFluxo(fx){if(!fx)return null;let a=+fx.m0.slice(0,4),mm=+fx.m0.slice(5,7);const m=[];for(let i=0;i<fx.c.length;i++){m.push(a+"-"+String(mm).padStart(2,"0"));if(++mm>12){mm=1;a++;}}return{m,c:fx.c.map(x=>x*1000),r:fx.r.map(x=>x*1000)};}
-// Dados mensais: o mês inicial só entra se o período começa na primeira quinzena dele.
+// Dados mensais: o mês inicial só entra se o período começa na primeira semana dele.
 function recortaFluxo(F,ini,fim){if(!F)return null;let a=ini?ini.slice(0,7):"";const b=fim.slice(0,7);
-  if(ini&&+ini.slice(8,10)>15){let y=+a.slice(0,4),mm=+a.slice(5,7)+1;if(mm>12){mm=1;y++;}a=y+"-"+String(mm).padStart(2,"0");}const o={m:[],c:[],r:[]};F.m.forEach((m,i)=>{if(m>=a&&m<=b){o.m.push(m);o.c.push(F.c[i]);o.r.push(F.r[i]);}});return o;}
+  if(ini&&+ini.slice(8,10)>7){let y=+a.slice(0,4),mm=+a.slice(5,7)+1;if(mm>12){mm=1;y++;}a=y+"-"+String(mm).padStart(2,"0");}const o={m:[],c:[],r:[]};F.m.forEach((m,i)=>{if(m>=a&&m<=b){o.m.push(m);o.c.push(F.c[i]);o.r.push(F.r[i]);}});return o;}
 function somaFluxo(o){if(!o||!o.m.length)return null;const c=o.c.reduce((x,y)=>x+y,0),r=o.r.reduce((x,y)=>x+y,0);return{c,r,l:c-r};}
 // Barras mensais: captação para cima, resgate para baixo, líquida em barra estreita por cima.
 function barras(el,o){

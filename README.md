@@ -47,7 +47,7 @@ Aba **Actions** → **Atualizar dados e publicar site** → **Run workflow**.
 - Se uma fonte de benchmark falhar, o site mantém a série da publicação anterior. O Ibovespa usa o Yahoo Finance como reserva da B3.
 - IPCA e IGP-M são mensais: a variação do mês é distribuída nos dias úteis, e a série termina no último mês divulgado.
 - Taxas vêm do extrato de informações da CVM (ou do cadastro antigo quando o extrato não tem). Podem faltar em fundos que não enviaram extrato.
-- Captação e resgates ficam agregados por mês. Num período que começa no meio de um mês, esse mês só entra se o período começar na primeira quinzena.
+- Captação e resgates ficam agregados por mês. Num período que começa no meio de um mês, esse mês só entra se o período começar na primeira semana dele; assim a janela de 12M soma 12 meses.
 - FIIs, FIDCs e Fiagros têm só dados mensais (informe mensal). FIPs aparecem com cadastro e PL declarado.
 - Na carteira, a CVM permite omitir posições temporariamente; nesses meses só o agregado por categoria é publicado.
 
