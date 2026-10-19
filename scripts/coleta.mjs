@@ -130,7 +130,7 @@ const sn = (v) => { const x = (v || "").trim().toUpperCase(); return x === "S" |
 const fundos = new Map(); // id -> {cnpj, sub, tipo, d:[], q:[], p:[], n:[], ult}
 function fundo(id, cnpj, sub) {
   let f = fundos.get(id);
-  if (!f) { f = { cnpj, sub, tipo: "", d: [], q: [], p: [], n: [], ult: -1 }; fundos.set(id, f); }
+  if (!f) { f = { cnpj, sub, tipo: "", d: [], q: [], p: [], n: [], fl: [], ult: -1 }; fundos.set(id, f); }
   return f;
 }
 
@@ -142,7 +142,7 @@ async function carregarInforme(zip, filtroMes) {
       if (r.cab) {
         const h = r.cab, g = (...ns) => { for (const x of ns) { const i = h.indexOf(x); if (i >= 0) return i; } return -1; };
         ix = { c: g("CNPJ_FUNDO_CLASSE", "CNPJ_FUNDO"), s: g("ID_SUBCLASSE"), t: g("TP_FUNDO_CLASSE", "TP_FUNDO"), d: g("DT_COMPTC"),
-               q: g("VL_QUOTA"), pl: g("VL_PATRIM_LIQ"), n: g("NR_COTST") };
+               q: g("VL_QUOTA"), pl: g("VL_PATRIM_LIQ"), n: g("NR_COTST"), cap: g("CAPTC_DIA"), res: g("RESG_DIA") };
         if (ix.c < 0 || ix.d < 0 || ix.q < 0) { aviso(`${path.basename(zip)}/${membro}: colunas inesperadas: ${h.join(",")}`); break; }
         continue;
       }
@@ -159,6 +159,9 @@ async function carregarInforme(zip, filtroMes) {
       f.d.push(d); f.q.push(q);
       f.p.push(ix.pl >= 0 ? num(c[ix.pl]) : NaN);
       f.n.push(ix.n >= 0 ? num(c[ix.n]) : NaN);
+      // Captação e resgate do dia (R$). Só guarda dias com movimento, para economizar memória.
+      const cap = ix.cap >= 0 ? num(c[ix.cap]) : NaN, res = ix.res >= 0 ? num(c[ix.res]) : NaN;
+      if ((cap > 0) || (res > 0)) f.fl.push(d, cap > 0 ? cap : 0, res > 0 ? res : 0);
       if (ix.t >= 0 && c[ix.t]) f.tipo = c[ix.t].trim();
       if (d > f.ult) f.ult = d;
       n++;
@@ -216,6 +219,33 @@ function ordenar(f) {
     d.push(f.d[i]); q.push(f.q[i]); p.push(f.p[i]); n.push(f.n[i]);
   }
   f.d = d; f.q = q; f.p = p; f.n = n;
+  // Captação e resgate somados por mês (chave = ano*12 + mês-1). Revisão de um mesmo dia: a última vence.
+  const porDia = new Map();
+  for (let i = 0; i < f.fl.length; i += 3) porDia.set(f.fl[i], [f.fl[i + 1], f.fl[i + 2]]);
+  f.fm = new Map();
+  for (const [x, [c, r]] of porDia) {
+    const dt = new Date(x * DIA_MS), k = dt.getUTCFullYear() * 12 + dt.getUTCMonth();
+    const a = f.fm.get(k) || [0, 0]; a[0] += c; a[1] += r; f.fm.set(k, a);
+  }
+  f.fl = null;
+}
+const mesDe = (x) => { const dt = new Date(x * DIA_MS); return dt.getUTCFullYear() * 12 + dt.getUTCMonth(); };
+const mesIso = (k) => `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, "0")}`;
+// Fluxo mensal em R$ mil, meses consecutivos do primeiro com movimento até o último dia da série.
+function serieFluxo(f) {
+  if (!f.fm || !f.fm.size) return null;
+  const ks = [...f.fm.keys()], k0 = Math.min(...ks), k1 = Math.max(mesDe(f.ult), ...ks);
+  const c = [], r = [];
+  for (let k = k0; k <= k1; k++) { const a = f.fm.get(k); c.push(a ? Math.round(a[0] / 1000) : 0); r.push(a ? Math.round(a[1] / 1000) : 0); }
+  return { m0: mesIso(k0), c, r };
+}
+// Captação líquida (R$) dos 12 meses que terminam no mês da data de referência (o mês corrente entra parcial).
+function captacao12(f, refDia) {
+  if (!f.fm || f.ult < refDia - 10) return null;
+  const k1 = mesDe(refDia);
+  let s = 0;
+  for (let k = k1 - 11; k <= k1; k++) { const a = f.fm.get(k); if (a) s += a[0] - a[1]; }
+  return Math.round(s);
 }
 
 // ------------------------------------------------------------------ cadastro
@@ -897,6 +927,7 @@ async function main() {
     f.p = pai.p.slice(0, n).concat(f.p);
     f.n = pai.n.slice(0, n).concat(f.n);
     f.encadeado = iso(pai.d[0]);
+    if (pai.fm) { const k0 = mesDe(primeiro); f.fm = f.fm || new Map(); for (const [k, a] of pai.fm) if (k < k0) f.fm.set(k, a); }
   }
 
   // Índices (com reserva no site já publicado)
@@ -1011,10 +1042,11 @@ async function main() {
     const info = montarInfo(id, f.cnpj, f.sub, f);
     const m = metricas12(f, fatorCdi, refDia);
     delete info._mensal;
-    escrever(id, { ...info, serie: serieLog(f.d, f.q), semanal: serieSemanal(f.d, f.p, f.n) });
+    const cap12 = captacao12(f, refDia);
+    escrever(id, { ...info, cap12, serie: serieLog(f.d, f.q), semanal: serieSemanal(f.d, f.p, f.n), fluxo: serieFluxo(f) });
     pontos += f.d.length;
     lista.push([id, info.nome, info.classe, info.situacao, info.ativo, info.serie, m?.ret ?? null, m?.vol ?? null, m?.sharpe ?? null,
-      info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima]);
+      info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima, cap12]);
   }
   // 2) Fundos e classes só com cadastro (estruturados, pré-operacionais, cancelados sem informe)
   const cnpjsComSerie = new Set([...fundos.values()].filter((f) => f.d.length >= 2).map((f) => f.cnpj));
@@ -1027,12 +1059,12 @@ async function main() {
     soCadastro++;
     if (_mensal) comMensal++;
     lista.push([cnpj, info.nome, info.classe, info.situacao, info.ativo, info.serie, info.ret12_mensal, null, null,
-      info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima]);
+      info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima, null]);
   }
 
   // Ativos primeiro, depois por PL
   lista.sort((a, b) => b[4] - a[4] || (b[10] || 0) - (a[10] || 0));
-  const campos = ["id", "nome", "classe", "situacao", "ativo", "serie", "ret12", "vol12", "sharpe12", "taxa_adm", "pl", "gestor", "admin", "inicio", "univ", "cotistas", "tipo", "ultima"];
+  const campos = ["id", "nome", "classe", "situacao", "ativo", "serie", "ret12", "vol12", "sharpe12", "taxa_adm", "pl", "gestor", "admin", "inicio", "univ", "cotistas", "tipo", "ultima", "cap12"];
   const idx = gzTexto(JSON.stringify({ campos, ref: iso(refDia), fundos: lista }));
   fs.writeFileSync(path.join(SAIDA, "fundos.txt"), idx);
   fs.writeFileSync(path.join(SAIDA, "indices.json"), JSON.stringify(indices));

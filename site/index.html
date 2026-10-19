@@ -182,6 +182,7 @@ const pct=(x,sinal=true)=>x==null||!isFinite(x)?"—":(sinal&&x>0?"+":"")+nf2.fo
 const pp=x=>x==null||!isFinite(x)?"—":(x>0?"+":"")+nf2.format(x*100).replace("-","−")+" p.p.";
 const atraso=(ult,fim)=>ult&&fim&&(Date.parse(fim)-Date.parse(ult))/864e5>4?ult:null;
 const num=(x,d=2)=>x==null||!isFinite(x)?"—":nf(d).format(x).replace("-","−");
+const brlS=x=>x==null||!isFinite(x)?"—":(x>0?"+":x<0?"−":"")+brl(Math.abs(x));
 function brl(x){if(x==null||!isFinite(x))return"—";const a=Math.abs(x);let s;if(a>=1e9)s=nf1.format(x/1e9)+" bi";else if(a>=1e6)s=nf1.format(x/1e6)+" mi";else if(a>=1e3)s=nf1.format(x/1e3)+" mil";else s=nf2.format(x);return"R$ "+s;}
 const dt=s=>{if(!s)return"—";const[y,m,d]=s.slice(0,10).split("-");return d+"/"+m+"/"+y;};
 const MES=["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
@@ -243,7 +244,7 @@ async function ficha(id){
   if(fichas.has(id))return fichas.get(id);
   const f=await getJson("f/"+id+".txt");
   if(f.serie&&typeof f.serie==="object"){const e=expandeCota(f.serie);f.d=e.d;f.q=e.v;}
-  f.sem=expandeSemanal(f.semanal);
+  f.sem=expandeSemanal(f.semanal);f.fx=expandeFluxo(f.fluxo);
   fichas.set(id,f);return f;
 }
 let BENCH=null;
@@ -401,6 +402,35 @@ function grafico(el,series,op){
     tip.hidden=false;const px=xx*r.width/W,tw=tip.offsetWidth;const left=px+12+tw>r.width?px-tw-12:px+12;tip.style.left=Math.max(0,left)+"px";tip.style.top="6px";});
   el.querySelector(".hit").addEventListener("pointerleave",()=>{tip.hidden=true;xh.setAttribute("visibility","hidden");});
 }
+// Captação e resgate mensais (arquivo em R$ mil) → {m:["AAAA-MM"], c, r} em R$
+function expandeFluxo(fx){if(!fx)return null;let a=+fx.m0.slice(0,4),mm=+fx.m0.slice(5,7);const m=[];for(let i=0;i<fx.c.length;i++){m.push(a+"-"+String(mm).padStart(2,"0"));if(++mm>12){mm=1;a++;}}return{m,c:fx.c.map(x=>x*1000),r:fx.r.map(x=>x*1000)};}
+// Dados mensais: o mês inicial só entra se o período começa na primeira quinzena dele.
+function recortaFluxo(F,ini,fim){if(!F)return null;let a=ini?ini.slice(0,7):"";const b=fim.slice(0,7);
+  if(ini&&+ini.slice(8,10)>15){let y=+a.slice(0,4),mm=+a.slice(5,7)+1;if(mm>12){mm=1;y++;}a=y+"-"+String(mm).padStart(2,"0");}const o={m:[],c:[],r:[]};F.m.forEach((m,i)=>{if(m>=a&&m<=b){o.m.push(m);o.c.push(F.c[i]);o.r.push(F.r[i]);}});return o;}
+function somaFluxo(o){if(!o||!o.m.length)return null;const c=o.c.reduce((x,y)=>x+y,0),r=o.r.reduce((x,y)=>x+y,0);return{c,r,l:c-r};}
+// Barras mensais: captação para cima, resgate para baixo, líquida em barra estreita por cima.
+function barras(el,o){
+  if(!o||!o.m.length){el.innerHTML='<div class="carregando">Sem movimentação no período.</div>';return;}
+  const W=Math.max(el.clientWidth||800,300),H=W<600?200:240,m={l:82,r:12,t:10,b:24},iw=W-m.l-m.r,ih=H-m.t-m.b,n=o.m.length;
+  let hi=Math.max(...o.c,0),lo=-Math.max(...o.r,0);if(hi===lo){hi=1;lo=-1;}
+  const st=niceStep((hi-lo)/5);hi=Math.ceil(hi/st)*st;lo=Math.floor(lo/st)*st;
+  const Y=y=>m.t+(hi-y)/(hi-lo)*ih,bw=iw/n,X=i=>m.l+i*bw;
+  let g="";
+  for(let y=lo;y<=hi+st/2;y+=st){const yy=Y(y).toFixed(1),z=Math.abs(y)<st/1e6;g+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--borda'+(z?'2':'')+')"'+(z?'':' stroke-dasharray="2 3"')+'/><text x="'+(m.l-6)+'" y="'+yy+'" dy="3.5" text-anchor="end" font-size="10" fill="var(--fraco)">'+h(z?"0":brl(y).replace("R$ ",""))+'</text>';}
+  const passo=Math.max(1,Math.ceil(n/(W<600?5:12))),anos=n>36;
+  o.m.forEach((mm,i)=>{const x=X(i),w=Math.max(bw*0.8,0.6),x0=x+(bw-w)/2,l=o.c[i]-o.r[i],wl=Math.max(w*0.4,0.6);
+    if(o.c[i])g+='<rect x="'+x0.toFixed(1)+'" y="'+Y(o.c[i]).toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+(Y(0)-Y(o.c[i])).toFixed(1)+'" fill="var(--pos)" fill-opacity=".35"/>';
+    if(o.r[i])g+='<rect x="'+x0.toFixed(1)+'" y="'+Y(0).toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+(Y(-o.r[i])-Y(0)).toFixed(1)+'" fill="var(--neg)" fill-opacity=".35"/>';
+    if(l)g+='<rect x="'+(x+(bw-wl)/2).toFixed(1)+'" y="'+Y(Math.max(l,0)).toFixed(1)+'" width="'+wl.toFixed(1)+'" height="'+Math.abs(Y(l)-Y(0)).toFixed(1)+'" fill="'+(l>0?"var(--pos)":"var(--neg)")+'"/>';
+    const marca=anos?(mm.endsWith("-01")&&(+mm.slice(0,4))%Math.max(1,Math.ceil(n/12/(W<600?5:12)))===0):i%passo===0;
+    if(marca)g+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-m.b+14)+'" text-anchor="middle" font-size="10" fill="var(--fraco)">'+(anos?mm.slice(0,4):mm.slice(5,7)+"/"+mm.slice(2,4))+'</text>';});
+  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Captação e resgates mensais">'+g+'<rect x="'+m.l+'" y="'+m.t+'" width="'+iw+'" height="'+ih+'" fill="transparent" class="hit"/></svg><div class="tip" hidden></div>';
+  const svg=el.querySelector("svg"),tip=el.querySelector(".tip");
+  el.querySelector(".hit").addEventListener("pointermove",ev=>{const r=svg.getBoundingClientRect(),sx=(ev.clientX-r.left)*W/r.width,i=Math.min(n-1,Math.max(0,Math.floor((sx-m.l)/bw)));
+    tip.innerHTML='<div class="d">'+MES[+o.m[i].slice(5,7)-1]+"/"+o.m[i].slice(0,4)+'</div><div class="l"><span>Captação</span><span>'+h(brl(o.c[i]))+'</span></div><div class="l"><span>Resgates</span><span>'+h(brl(o.r[i]))+'</span></div><div class="l"><span>Líquida</span><span>'+h(brlS(o.c[i]-o.r[i]))+'</span></div>';
+    tip.hidden=false;const px=(X(i)+bw/2)*r.width/W,tw=tip.offsetWidth;tip.style.left=Math.max(0,px+12+tw>r.width?px-tw-12:px+12)+"px";tip.style.top="6px";});
+  el.querySelector(".hit").addEventListener("pointerleave",()=>{tip.hidden=true;});
+}
 function legenda(series){return'<div class="leg">'+series.map(s=>'<span><i class="'+(s.bench?"tr":"")+'" style="background:'+s.cor+';--c:'+s.cor+'"></i>'+h(s.nome)+(s.ate?' <span class="fraco">(até '+dt(s.ate)+')</span>':'')+'</span>').join("")+'</div>';}
 
 // ================================================================ busca (componente)
@@ -478,7 +508,7 @@ const resumos=new Map();
 async function resumoFundo(id){
   if(resumos.has(id))return resumos.get(id);
   const idx=await indice(),base=idx.porId.get(id);let f=null;try{f=await ficha(id);}catch(e){}
-  const r={id,nome:(f&&f.nome)||(base&&base.nome)||id,classe:(f&&(f.classe||f.tipo))||(base&&(base.classe||base.tipo))||"—",pl:f?f.pl:base?base.pl:null,ativo:f?f.ativo:base?base.ativo:0,existe:!!(f||base)};
+  const r={id,nome:(f&&f.nome)||(base&&base.nome)||id,classe:(f&&(f.classe||f.tipo))||(base&&(base.classe||base.tipo))||"—",pl:f?f.pl:base?base.pl:null,cap12:f?f.cap12:base?base.cap12:null,ativo:f?f.ativo:base?base.ativo:0,existe:!!(f||base)};
   if(f&&f.d&&f.d.length>2){
     const n=f.d.length,fim=f.d[n-1];r.ultima=fim;r.dia=f.q[n-1]/f.q[n-2]-1;
     const janela=j=>{const ini=inicioJanela(fim,j),w=recorta(f.d,f.q,ini,fim);if(w.d.length<2)return null;if(ini&&(Date.parse(w.d[0])-Date.parse(ini))/864e5>10)return null;return w;};
@@ -495,16 +525,16 @@ async function resumoFundo(id){
 function tabelaResumo(rows,op){
   op=op||{};
   const col=x=>'<td class="'+cls(x)+'">'+pct(x)+'</td>';
-  let t='<thead><tr>'+(op.selecao?'<th></th>':'')+'<th class="l">Fundo</th><th class="l">Classe</th><th>Última cota</th><th>Dia</th><th>1M</th><th>No ano</th><th>12M</th><th>% CDI 12M</th><th>Vol 12M</th><th>PL</th>'+(op.remover?'<th></th>':'')+'</tr></thead><tbody>';
+  let t='<thead><tr>'+(op.selecao?'<th></th>':'')+'<th class="l">Fundo</th><th class="l">Classe</th><th>Última cota</th><th>Dia</th><th>1M</th><th>No ano</th><th>12M</th><th>% CDI 12M</th><th>Vol 12M</th><th>PL</th><th>Capt. líq. 12M</th>'+(op.remover?'<th></th>':'')+'</tr></thead><tbody>';
   for(const r of rows){
     t+='<tr>'+(op.selecao?'<td><input type="checkbox" data-id="'+h(r.id)+'" aria-label="Selecionar '+h(r.nome)+'"></td>':'')+
       '<td class="nome l">'+estrela(r.id)+(r.existe?'<a href="#/fundo/'+encodeURIComponent(r.id)+'">'+h(r.nome)+'</a>':h(r.nome)+' <span class="fraco">(não encontrado)</span>')+(r.mensal?'<span class="tag">MENSAL</span>':"")+(r.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td>'+
       '<td class="l">'+h(r.classe)+'</td><td>'+(r.ultima?(r.mensal?r.ultima.slice(5,7)+"/"+r.ultima.slice(0,4):dt(r.ultima)):"—")+'</td>'+
       (r.mensal?'<td>—</td>':col(r.dia))+col(r.r1m)+col(r.ano)+col(r.r12)+
-      '<td>'+(r.pcdi==null||!isFinite(r.pcdi)?"—":nf0.format(r.pcdi*100).replace("-","−")+"%")+'</td><td>'+pct(r.vol,false)+'</td><td>'+brl(r.pl)+'</td>'+
+      '<td>'+(r.pcdi==null||!isFinite(r.pcdi)?"—":nf0.format(r.pcdi*100).replace("-","−")+"%")+'</td><td>'+pct(r.vol,false)+'</td><td>'+brl(r.pl)+'</td><td class="'+cls(r.cap12)+'">'+brlS(r.cap12)+'</td>'+
       (op.remover?'<td><button type="button" class="chip-x" data-rm="'+h(r.id)+'" aria-label="Tirar do peer group" title="Tirar do peer group" style="border:0;background:none;color:var(--neg);cursor:pointer">×</button></td>':'')+'</tr>';
   }
-  if(!rows.length)t+='<tr><td colspan="12" class="l fraco">'+(op.vazio||"Nenhum fundo.")+'</td></tr>';
+  if(!rows.length)t+='<tr><td colspan="13" class="l fraco">'+(op.vazio||"Nenhum fundo.")+'</td></tr>';
   return t+'</tbody>';
 }
 
@@ -669,7 +699,8 @@ async function telaCompara(r){
     ...(bs.length?[["sec","Contra benchmarks"]].concat(bs.flatMap(x=>{const cb=s=>s.cb||(s.cb={}),g=s=>cb(s)[x.b.id]||(cb(s)[x.b.id]=contraBench(s.bruto.d,s.bruto.v,x.b));
       return[["Excesso vs "+x.b.nome+" (p.p.)",s=>{const r=g(s);return r&&r.exc;},pp,1],["Tracking error vs "+x.b.nome,s=>{const r=g(s);return r&&r.te;},x2=>pct(x2,false),-1],["Information ratio vs "+x.b.nome,s=>{const r=g(s);return r&&r.ir;},num,1]];})):[]),
     ["sec","Estrutura do produto"],
-    ["Patrimônio líquido",s=>s.f.pl,brl,1],["PL médio no período",s=>plMedio(s.f,s.d[0],fim),brl,0],["Cotistas",s=>s.f.cotistas,x=>x==null?"—":nf0.format(x),0],
+    ["Patrimônio líquido",s=>s.f.pl,brl,1],["PL médio no período",s=>plMedio(s.f,s.d[0],fim),brl,0],
+    ["Captação líquida no período",s=>{const x=somaFluxo(recortaFluxo(s.f.fx,s.d[0],fim));return x&&x.l;},brlS,1],["Captação líquida 12M",s=>s.f.cap12,brlS,1],["Cotistas",s=>s.f.cotistas,x=>x==null?"—":nf0.format(x),0],
     ["Pregões na janela",s=>s.m&&s.m.pregoes,x=>x==null?"—":nf0.format(x),0],["Início do fundo",s=>s.f.inicio,dt,0],["Série na base",s=>s.f.primeira,dt,0],
     ["Taxa de administração",s=>s.f.taxa_adm,x=>x==null?"—":nf2.format(x)+"% a.a.",-1],["Fonte da taxa",s=>s.f.fonte_taxa,x=>x||"—",0],
     ["Taxa de performance",s=>s.f.taxa_perf,x=>x||"—",0],["Aplicação mínima",s=>s.f.aplic_min,brl,0],["Resgate",s=>prazo(s.f),x=>x,0],
@@ -681,7 +712,7 @@ async function telaCompara(r){
     if(l[0]==="sec"){t+='<tr class="sec"><td colspan="'+(series.length+1)+'">'+l[1]+'</td></tr>';continue;}
     const vals=series.map(l[1]);let bi=-1;
     if(l[3]&&series.length>1){let bv=null;vals.forEach((v,i)=>{if(v==null||!isFinite(v))return;if(bv==null||(l[3]>0?v>bv:v<bv)){bv=v;bi=i;}});}
-    t+='<tr><td class="lbl">'+l[0]+'</td>'+vals.map((v,i)=>'<td class="'+(i===bi?"melhor ":"")+(cor.has(l[0])||l[0].startsWith("Excesso")?cls(v):"")+'">'+h(l[2](v))+'</td>').join("")+'</tr>';
+    t+='<tr><td class="lbl">'+l[0]+'</td>'+vals.map((v,i)=>'<td class="'+(i===bi?"melhor ":"")+(cor.has(l[0])||l[0].startsWith("Excesso")||l[0].startsWith("Captação")?cls(v):"")+'">'+h(l[2](v))+'</td>').join("")+'</tr>';
   }
   $("#cmp-t").innerHTML=t+'</tbody>';
   if(series.length>1){
@@ -696,7 +727,7 @@ function prazo(f){if(f.conversao==null&&f.pagamento==null)return"—";return"D+"
 
 // ================================================================ F2 RANKING (tabela reutilizada por F3/F4/F5)
 const UNIVERSOS=[["todos","Todos",0],["aberto","Aberto",2],["exclusivo","Exclusivo",4]];
-const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["situacao","Situação","l"],["ret12","Ret 12M"],["vol12","Vol"],["sharpe12","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["gestor","Gestor","l"],["inicio","Início"]];
+const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["situacao","Situação","l"],["ret12","Ret 12M"],["vol12","Vol"],["sharpe12","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["cap12","Capt. líq. 12M"],["gestor","Gestor","l"],["inicio","Início"]];
 function filtrosPadrao(){return{q:"",u:"todos",classe:"",sit:"",serie:"todas",plmin:"",taxamax:"",ord:"pl",dir:-1};}
 function aplicaFiltros(lista,F,fixo){
   const tk=norm(F.q).split(/\s+/).filter(Boolean),okN=casaNome(F.q),dig=F.q.replace(/[.\-\/\s]/g,"");const um=(UNIVERSOS.find(u=>u[0]===F.u)||UNIVERSOS[0])[2];
@@ -757,7 +788,7 @@ function montarRanking(el,op){
         '<td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+'</td>'+
         '<td class="l">'+h(f.classe||f.tipo||"—")+'</td><td class="l fraco" style="white-space:normal;min-width:110px">'+h(f.situacao||"—")+'</td>'+
         '<td class="'+cls(f.ret12)+'">'+pct(f.ret12)+'</td><td>'+pct(f.vol12,false)+'</td><td>'+num(f.sharpe12)+'</td>'+
-        '<td>'+(f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"%")+'</td><td>'+brl(f.pl)+'</td>'+
+        '<td>'+(f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"%")+'</td><td>'+brl(f.pl)+'</td><td class="'+cls(f.cap12)+'">'+brlS(f.cap12)+'</td>'+
         '<td class="l fraco" style="max-width:240px;overflow:hidden;text-overflow:ellipsis">'+h(f.gestor||"—")+'</td><td>'+dt(f.inicio)+'</td></tr>';
     }
     if(!vis.length)t+='<tr><td colspan="'+COLS.length+'" class="l fraco">Nenhum fundo com esses filtros.</td></tr>';
@@ -874,6 +905,8 @@ async function telaFundo(r){
   ${bser.length&&mt?`<section class="painel"><div class="cab">Fundo contra benchmarks · ${h(rot)}<span class="sub">mesmas datas do fundo</span></div><div class="tw"><table id="fd-vb"></table></div></section>`:""}
   ${f.sem?`<section class="painel"><div class="cab">Patrimônio líquido<span class="sub">mesma janela do gráfico acima</span></div><div class="corpo"><div class="grafico" id="fd-pl"></div></div></section>
   <section class="painel"><div class="cab">Número de cotistas</div><div class="corpo"><div class="grafico" id="fd-ct"></div></div></section>`:""}
+  ${f.fx?`<section class="painel"><div class="cab">Captação e resgates · ${h(rot)}<span class="linha"><span class="sub" id="fd-flm"></span>${botoesExportar("fd-fx")}</span></div><div class="corpo"><div class="kv" id="fd-flk"></div><div class="grafico" id="fd-fl"></div>
+    <div class="leg"><span><i style="background:var(--pos);opacity:.35;height:8px"></i>Captação</span><span><i style="background:var(--neg);opacity:.35;height:8px"></i>Resgates</span><span><i style="background:var(--texto);height:8px;width:6px"></i>Líquida (verde entra, vermelho sai)</span></div></div></section>`:""}
   <section class="painel"><div class="cab">Retorno mês a mês</div><div class="tw"><table id="fd-m"></table></div></section>`;
   $("#fd-j").onclick=e=>{const b=e.target.closest("button");if(b)ir(link({j:b.dataset.j,de:"",ate:""}));};
   $("#fd-de").onchange=e=>ir(link({de:e.target.value}));$("#fd-ate").onchange=e=>ir(link({ate:e.target.value}));
@@ -900,6 +933,13 @@ async function telaFundo(r){
     const p=recorta(f.sem.d,f.sem.p,w.d[0],fim),ct=recorta(f.sem.d,f.sem.c,w.d[0],fim);
     grafico($("#fd-pl"),[{nome:"PL",cor:"var(--pos)",d:p.d,v:p.v}],{fmt:brl,area:true,altura:180,margemEsq:82,titulo:"Patrimônio líquido"});
     grafico($("#fd-ct"),[{nome:"Cotistas",cor:"var(--ciano)",d:ct.d,v:ct.v}],{fmt:y=>nf0.format(y),area:true,altura:160,margemEsq:70,titulo:"Cotistas"});
+  }
+  if(f.fx&&w.d.length){
+    const o=recortaFluxo(f.fx,w.d[0],fim),sm=somaFluxo(o),pl0=f.sem?valorEm({d:f.sem.d,v:f.sem.p},w.d[0]):null;
+    $("#fd-flm").textContent=o.m.length?"meses "+o.m[0].slice(5)+"/"+o.m[0].slice(0,4)+" a "+o.m[o.m.length-1].slice(5)+"/"+o.m[o.m.length-1].slice(0,4):"";
+    $("#fd-flk").innerHTML=[["Captação",brl(sm&&sm.c)],["Resgates",brl(sm&&sm.r)],["Captação líquida",'<span class="'+cls(sm&&sm.l)+'">'+brlS(sm&&sm.l)+'</span>'],["Líquida ÷ PL inicial",sm&&pl0?'<span class="'+cls(sm.l)+'">'+pct(sm.l/pl0)+'</span>':"—"],["Captação líquida 12M",'<span class="'+cls(f.cap12)+'">'+brlS(f.cap12)+'</span>']].map(([a,b])=>k(a,b)).join("");
+    barras($("#fd-fl"),o);
+    ligaExportar("fd-fx",async()=>{if(!o.m.length)throw new Error("Sem movimentação no período.");exportarCSV("captacao_"+f.cnpj+(f.sub?"_"+f.sub:"")+"_"+o.m[0]+"_"+o.m[o.m.length-1]+".csv",["Mês","Captação (R$)","Resgates (R$)","Captação líquida (R$)"],o.m.map((m,i)=>[m,o.c[i],o.r[i],o.c[i]-o.r[i]]));});
   }
   const porMes=new Map(),limAno=new Map();let q0=f.q[0],d0=f.d[0];
   for(let i=1;i<f.d.length;i++){if(i===f.d.length-1||f.d[i+1].slice(0,7)!==f.d[i].slice(0,7)){porMes.set(f.d[i].slice(0,7),{r:f.q[i]/q0-1});const a=f.d[i].slice(0,4);if(!limAno.has(a))limAno.set(a,[d0,f.d[i]]);else limAno.get(a)[1]=f.d[i];q0=f.q[i];d0=f.d[i];}}
