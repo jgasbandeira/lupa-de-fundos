@@ -90,6 +90,13 @@ input[type=date],input[type=number],select{border:1px solid var(--borda2);backgr
 .btn{display:inline-block;border:1px solid var(--ambar);color:var(--ambar);background:transparent;padding:4px 10px;font-size:11px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase}
 .btn:hover{background:var(--ambar);color:#000}
 .exp .btn{padding:2px 8px}
+.estrela{border:0;background:none;color:var(--fraco);cursor:pointer;font-size:15px;padding:0 6px 0 0;line-height:1;vertical-align:-1px}
+.estrela:hover,.estrela.on{color:var(--ambar)}
+.sel-cesta{font-size:11px;text-transform:uppercase;color:var(--ambar);border-color:var(--ambar)}
+.cesta-cab{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--sup2);border:1px solid var(--ambar);color:var(--texto);padding:8px 14px;font-size:12px;z-index:50;max-width:calc(100% - 32px)}
+.vazio-painel{display:grid;gap:8px;color:var(--fraco)}
+.vazio-painel b{color:var(--texto)}
 .btn[disabled]{opacity:.4;cursor:default;background:transparent;color:var(--ambar)}
 
 /* tabelas */
@@ -144,12 +151,12 @@ footer{border-top:1px solid var(--borda);font-size:10px;color:var(--fraco);paddi
 <body>
 <header class="topo">
   <div class="wrap linha">
-    <a class="logo" href="#/ranking">LUPA<b>·</b>FUNDOS</a>
+    <a class="logo" href="#/">LUPA<b>·</b>FUNDOS</a>
     <nav class="nav" id="nav">
-      <a href="#/ranking" data-r="ranking">F1 Ranking</a>
-      <a href="#/compara" data-r="compara">F2 Compara</a>
-      <a href="#/gestores" data-r="gestores">F3 Gestores</a>
-      <a href="#/administradores" data-r="administradores">F4 Administradores</a>
+      <a href="#/painel" data-r="painel">F1 Painel</a>
+      <a href="#/ranking" data-r="ranking">F2 Ranking</a>
+      <a href="#/compara" data-r="compara">F3 Compara</a>
+      <a href="#/gestores" data-r="gestores">F4 Gestores e administradores</a>
       <a href="#/estruturados" data-r="estruturados">F5 Estruturados</a>
     </nav>
     <button class="tema" id="tema" type="button">Tema claro</button>
@@ -354,17 +361,140 @@ const nomeArquivo=s2=>(s2||"fundo").normalize("NFD").replace(/[̀-ͯ]/g,"").repl
 function botoesExportar(id){return'<span class="linha exp" id="'+id+'"><button type="button" class="btn" data-x="csv">Exportar CSV</button></span>';}
 function ligaExportar(id,fn){const el=document.getElementById(id);if(!el)return;el.onclick=async e=>{const b=e.target.closest("button[data-x]");if(!b)return;const t=b.textContent;b.disabled=true;b.textContent="…";try{await fn();}catch(err){alert(err.message);}finally{b.disabled=false;b.textContent=t;}};}
 
+
+// ================================================================ favoritos e cestas (salvos neste navegador)
+const PAINEL={fav:[],cestas:[]};
+try{const x=JSON.parse(ls("lupa-painel")||"null");if(x){PAINEL.fav=Array.isArray(x.fav)?x.fav:[];PAINEL.cestas=Array.isArray(x.cestas)?x.cestas:[];}}catch(e){}
+const temPainel=()=>PAINEL.fav.length>0||PAINEL.cestas.length>0;
+function salvaPainel(){ls("lupa-painel",JSON.stringify(PAINEL));}
+const ehFav=id=>PAINEL.fav.includes(id);
+function alternaFav(id){const i=PAINEL.fav.indexOf(id);if(i>=0)PAINEL.fav.splice(i,1);else PAINEL.fav.push(id);salvaPainel();return i<0;}
+function estrela(id){const on=ehFav(id);return'<button type="button" class="estrela'+(on?" on":"")+'" data-fav="'+h(id)+'" aria-pressed="'+on+'" aria-label="'+(on?"Remover dos favoritos":"Adicionar aos favoritos")+'" title="'+(on?"Remover dos favoritos":"Adicionar aos favoritos")+'">'+(on?"★":"☆")+'</button>';}
+function toast(msg){const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2600);}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button[data-fav]");if(!b)return;e.preventDefault();e.stopPropagation();
+  const on=alternaFav(b.dataset.fav);
+  document.querySelectorAll("button[data-fav]").forEach(x=>{if(x.dataset.fav!==b.dataset.fav)return;x.classList.toggle("on",on);x.textContent=on?"★":"☆";x.setAttribute("aria-pressed",on);x.setAttribute("aria-label",on?"Remover dos favoritos":"Adicionar aos favoritos");x.title=x.getAttribute("aria-label");});
+  toast(on?"Adicionado aos favoritos":"Removido dos favoritos");
+  if(rotaAtual==="painel")render();
+},true);
+const novoId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function novaCesta(nome,fundos){const c={id:novoId(),nome:nome||"Nova cesta",fundos:[...new Set(fundos||[])],criada:new Date().toISOString().slice(0,10)};PAINEL.cestas.push(c);salvaPainel();return c;}
+function adicionaNaCesta(c,ids){let n=0;ids.forEach(i=>{if(!c.fundos.includes(i)){c.fundos.push(i);n++;}});salvaPainel();return n;}
+function seletorCesta(id){return'<select class="sel-cesta" id="'+id+'" aria-label="Adicionar à cesta"><option value="">Adicionar à cesta…</option>'+PAINEL.cestas.map(c=>'<option value="'+h(c.id)+'">'+h(c.nome)+' ('+c.fundos.length+')</option>').join("")+'<option value="__nova">+ Nova cesta…</option></select>';}
+function ligaSeletorCesta(el,obterIds){if(!el)return;el.onchange=()=>{
+  const v=el.value;el.value="";const ids=obterIds();if(!ids.length){toast("Selecione ao menos um fundo.");return;}
+  let c;if(v==="__nova"){const nome=(prompt("Nome da nova cesta:")||"").trim();if(!nome)return;c=novaCesta(nome,[]);}else c=PAINEL.cestas.find(x=>x.id===v);
+  if(!c)return;const n=adicionaNaCesta(c,ids);
+  toast(n?n+(n===1?" fundo adicionado":" fundos adicionados")+" à cesta "+c.nome:"Esses fundos já estavam na cesta "+c.nome);
+  const novo=document.createElement("div");novo.innerHTML=seletorCesta(el.id);el.innerHTML=novo.firstChild.innerHTML;
+};}
+function linkCesta(c){return location.href.split("#")[0]+"#/painel?"+new URLSearchParams({cesta:c.nome,f:c.fundos.join(",")}).toString();}
+async function copiar(txt){try{await navigator.clipboard.writeText(txt);return true;}catch(e){prompt("Copie o link:",txt);return false;}}
+
+// Resumo de um fundo para as tabelas do painel
+const resumos=new Map();
+async function resumoFundo(id){
+  if(resumos.has(id))return resumos.get(id);
+  const idx=await indice(),base=idx.porId.get(id);let f=null;try{f=await ficha(id);}catch(e){}
+  const r={id,nome:(f&&f.nome)||(base&&base.nome)||id,classe:(f&&(f.classe||f.tipo))||(base&&(base.classe||base.tipo))||"—",pl:f?f.pl:base?base.pl:null,ativo:f?f.ativo:base?base.ativo:0,existe:!!(f||base)};
+  if(f&&f.d&&f.d.length>2){
+    const n=f.d.length,fim=f.d[n-1];r.ultima=fim;r.dia=f.q[n-1]/f.q[n-2]-1;
+    const janela=j=>{const ini=inicioJanela(fim,j),w=recorta(f.d,f.q,ini,fim);if(w.d.length<2)return null;if(ini&&(Date.parse(w.d[0])-Date.parse(ini))/864e5>10)return null;return w;};
+    const m1=janela("1m"),ya=janela("ytd"),a12=janela("12m");
+    r.r1m=m1?m1.v[m1.v.length-1]/m1.v[0]-1:null;r.ano=ya?ya.v[ya.v.length-1]/ya.v[0]-1:null;
+    if(a12){const mt=metricas(a12.d,a12.v,null);r.r12=mt&&mt.ret;r.pcdi=mt&&mt.pcdi;r.vol=mt&&mt.vol;}
+  }else if(f&&f.mensal){
+    const M=f.mensal,u=M.m.length-1;r.ultima=M.m[u];r.mensal=true;r.r1m=M.rent[u];
+    const ano=M.m[u].slice(0,4);let a=1,ok=false;M.m.forEach((m,i)=>{if(m.startsWith(ano)&&M.rent[i]!=null){a*=1+M.rent[i];ok=true;}});r.ano=ok?a-1:null;
+    r.r12=f.ret12_mensal??null;
+  }
+  resumos.set(id,r);return r;
+}
+function tabelaResumo(rows,op){
+  op=op||{};
+  const col=x=>'<td class="'+cls(x)+'">'+pct(x)+'</td>';
+  let t='<thead><tr>'+(op.selecao?'<th></th>':'')+'<th class="l">Fundo</th><th class="l">Classe</th><th>Última cota</th><th>Dia</th><th>1M</th><th>No ano</th><th>12M</th><th>% CDI 12M</th><th>Vol 12M</th><th>PL</th>'+(op.remover?'<th></th>':'')+'</tr></thead><tbody>';
+  for(const r of rows){
+    t+='<tr>'+(op.selecao?'<td><input type="checkbox" data-id="'+h(r.id)+'" aria-label="Selecionar '+h(r.nome)+'"></td>':'')+
+      '<td class="nome l">'+estrela(r.id)+(r.existe?'<a href="#/fundo/'+encodeURIComponent(r.id)+'">'+h(r.nome)+'</a>':h(r.nome)+' <span class="fraco">(não encontrado)</span>')+(r.mensal?'<span class="tag">MENSAL</span>':"")+(r.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td>'+
+      '<td class="l">'+h(r.classe)+'</td><td>'+(r.ultima?(r.mensal?r.ultima.slice(5,7)+"/"+r.ultima.slice(0,4):dt(r.ultima)):"—")+'</td>'+
+      (r.mensal?'<td>—</td>':col(r.dia))+col(r.r1m)+col(r.ano)+col(r.r12)+
+      '<td>'+(r.pcdi==null||!isFinite(r.pcdi)?"—":nf0.format(r.pcdi*100).replace("-","−")+"%")+'</td><td>'+pct(r.vol,false)+'</td><td>'+brl(r.pl)+'</td>'+
+      (op.remover?'<td><button type="button" class="chip-x" data-rm="'+h(r.id)+'" aria-label="Tirar da cesta" title="Tirar da cesta" style="border:0;background:none;color:var(--neg);cursor:pointer">×</button></td>':'')+'</tr>';
+  }
+  if(!rows.length)t+='<tr><td colspan="12" class="l fraco">'+(op.vazio||"Nenhum fundo.")+'</td></tr>';
+  return t+'</tbody>';
+}
+
+// ================================================================ F1 PAINEL
+async function telaPainel(r){
+  const idx=await indice();await benchs();
+  const cn=r.q.get("cesta"),cf=(r.q.get("f")||"").split(",").filter(Boolean);
+  const compartilhada=cn&&cf.length?{nome:cn,fundos:cf}:null;
+  app.innerHTML=`
+  <section class="painel"><div class="cab">Meu painel<span class="linha"><span class="sub">salvo neste navegador</span><button type="button" class="btn" id="pn-exp">Exportar painel</button><label class="btn" style="cursor:pointer">Importar painel<input type="file" id="pn-imp" accept=".json,application/json" hidden></label></span></div>
+    <div class="corpo"><div class="fraco" style="font-size:11px">Favoritos e cestas ficam guardados só neste navegador, e ninguém mais vê. Para levar para outro aparelho, use o link de cada cesta ou exporte o painel e importe do outro lado.</div></div></section>
+  ${compartilhada?`<section class="painel aviso"><div class="cab">Cesta compartilhada<span class="linha"><button class="btn" id="pn-sv">Salvar no meu painel</button><button class="btn" id="pn-cmpc">Comparar ▸</button></span></div><div class="corpo"><div><b style="color:var(--texto)">${h(compartilhada.nome)}</b> · ${compartilhada.fundos.length} fundos</div><div class="tw"><table id="pn-ct"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`:""}
+  <section class="painel"><div class="cab">Favoritos · ${PAINEL.fav.length}<span class="linha"><span class="sub" id="pn-fsel">0 selecionados</span><button class="btn" id="pn-fcmp" disabled>Comparar ▸</button>${seletorCesta("pn-fcst")}</span></div>
+    <div class="tw"><table id="pn-ft"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></section>
+  <section class="painel"><div class="cab">Cestas · ${PAINEL.cestas.length}<button type="button" class="btn" id="pn-nova">+ Nova cesta</button></div>
+    <div class="corpo" id="pn-cestas"></div></section>`;
+  // exportar / importar
+  $("#pn-exp").onclick=()=>salvarArquivo("lupa-painel.json",new Blob([JSON.stringify({versao:1,exportado:new Date().toISOString(),fav:PAINEL.fav,cestas:PAINEL.cestas},null,1)],{type:"application/json"}));
+  $("#pn-imp").onchange=async e=>{const arq=e.target.files[0];if(!arq)return;try{const x=JSON.parse(await arq.text());let nf=0,nc=0;
+    (x.fav||[]).forEach(id=>{if(!PAINEL.fav.includes(id)){PAINEL.fav.push(id);nf++;}});
+    (x.cestas||[]).forEach(c=>{if(!c||!Array.isArray(c.fundos))return;if(!PAINEL.cestas.some(y=>y.id===c.id)){PAINEL.cestas.push({id:c.id||novoId(),nome:c.nome||"Cesta",fundos:c.fundos,criada:c.criada||""});nc++;}});
+    salvaPainel();toast("Importado: "+nf+" favoritos e "+nc+" cestas novas");render();}catch(err){toast("Arquivo inválido. Use um arquivo exportado pelo próprio site.");}};
+  // cesta compartilhada
+  if(compartilhada){
+    const rows=await Promise.all(compartilhada.fundos.map(resumoFundo));$("#pn-ct").innerHTML=tabelaResumo(rows);
+    $("#pn-sv").onclick=()=>{novaCesta(compartilhada.nome,compartilhada.fundos);toast("Cesta salva no seu painel");ir("#/painel");};
+    $("#pn-cmpc").onclick=()=>irCompara({f:compartilhada.fundos.slice(0,MAXF),j:"12m",b:["CDI"],de:"",ate:""});
+  }
+  // favoritos
+  const selF=new Set();
+  const rowsF=await Promise.all(PAINEL.fav.map(resumoFundo));
+  $("#pn-ft").innerHTML=tabelaResumo(rowsF,{selecao:true,vazio:'Nenhum favorito ainda. Clique na estrela ☆ ao lado do nome de um fundo no <a href="#/ranking" style="color:var(--ciano)">ranking</a>, na ficha ou na comparação.'});
+  $("#pn-ft").onchange=e=>{const c=e.target.closest("input[data-id]");if(!c)return;if(c.checked)selF.add(c.dataset.id);else selF.delete(c.dataset.id);$("#pn-fsel").textContent=selF.size+" selecionado"+(selF.size===1?"":"s");$("#pn-fcmp").disabled=!selF.size;};
+  $("#pn-fcmp").onclick=()=>irCompara({f:[...selF].slice(0,MAXF),j:"12m",b:["CDI"],de:"",ate:""});
+  ligaSeletorCesta($("#pn-fcst"),()=>[...selF]);
+  // cestas
+  $("#pn-nova").onclick=()=>{const nome=(prompt("Nome da nova cesta:")||"").trim();if(!nome)return;novaCesta(nome,[]);render();};
+  const box=$("#pn-cestas");
+  if(!PAINEL.cestas.length){box.innerHTML='<div class="vazio-painel"><div><b>Cestas são grupos de fundos que você monta</b>, por exemplo "Concorrentes do meu fundo", "Multimercados que acompanho" ou "FIIs de logística".</div><div>Crie uma cesta acima e adicione fundos pela busca dentro dela, ou marque fundos no ranking e use "Adicionar à cesta".</div></div>';return;}
+  box.innerHTML=PAINEL.cestas.map((c,i)=>`<section class="painel" style="background:var(--fundo)"><div class="cab"><span class="cesta-cab"><span style="color:var(--texto)">${h(c.nome)}</span><span class="sub">${c.fundos.length} fundo${c.fundos.length===1?"":"s"}</span></span>
+      <span class="linha"><button class="btn" data-a="cmp" data-c="${i}"${c.fundos.length?"":" disabled"}>Comparar ▸</button><button class="btn" data-a="lnk" data-c="${i}"${c.fundos.length?"":" disabled"}>Copiar link</button><button class="btn" data-a="ren" data-c="${i}">Renomear</button><button class="btn" data-a="del" data-c="${i}" style="color:var(--neg);border-color:var(--neg)">Excluir</button></span></div>
+    <div class="corpo"><div id="pn-cb-${i}"></div><div class="tw"><table id="pn-c-${i}"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`).join("");
+  box.onclick=async e=>{
+    const rm=e.target.closest("button[data-rm]");
+    if(rm){const tb=rm.closest("table");const i=+tb.id.split("-").pop();const c=PAINEL.cestas[i];c.fundos=c.fundos.filter(x=>x!==rm.dataset.rm);salvaPainel();render();return;}
+    const b=e.target.closest("button[data-a]");if(!b)return;const c=PAINEL.cestas[+b.dataset.c];if(!c)return;
+    if(b.dataset.a==="cmp"){if(c.fundos.length>MAXF)toast("A comparação mostra até 8 fundos; abrindo os 8 primeiros.");irCompara({f:c.fundos.slice(0,MAXF),j:"12m",b:["CDI"],de:"",ate:""});}
+    else if(b.dataset.a==="lnk"){const ok=await copiar(linkCesta(c));if(ok)toast("Link da cesta copiado");}
+    else if(b.dataset.a==="ren"){const nome=(prompt("Novo nome da cesta:",c.nome)||"").trim();if(nome){c.nome=nome;salvaPainel();render();}}
+    else if(b.dataset.a==="del"){if(confirm('Excluir a cesta "'+c.nome+'"? Os fundos continuam nos favoritos, se estiverem lá.')){PAINEL.cestas.splice(+b.dataset.c,1);salvaPainel();render();}}
+  };
+  for(let i=0;i<PAINEL.cestas.length;i++){
+    const c=PAINEL.cestas[i];
+    busca($("#pn-cb-"+i),{placeholder:"Adicionar fundo a esta cesta (nome ou CNPJ)…",escolher:f=>{if(adicionaNaCesta(c,[f.id]))render();else toast("Esse fundo já está na cesta");}});
+    const rows=await Promise.all(c.fundos.map(resumoFundo));
+    $("#pn-c-"+i).innerHTML=tabelaResumo(rows,{remover:true,vazio:"Cesta vazia. Use a busca acima para adicionar fundos."});
+  }
+}
+
 // ================================================================ rotas
 const app=$("#app");
 let rotaAtual="";
-function rota(){const hsh=location.hash.replace(/^#\/?/,"");const i=hsh.indexOf("?");const cam=i<0?hsh:hsh.slice(0,i),qs=i<0?"":hsh.slice(i+1);const p=cam.split("/").map(decodeURIComponent);return{nome:p[0]||"ranking",arg:p.slice(1).join("/"),q:new URLSearchParams(qs)};}
+function rota(){const hsh=location.hash.replace(/^#\/?/,"");const i=hsh.indexOf("?");const cam=i<0?hsh:hsh.slice(0,i),qs=i<0?"":hsh.slice(i+1);const p=cam.split("/").map(decodeURIComponent);return{nome:p[0]||(temPainel()?"painel":"ranking"),arg:p.slice(1).join("/"),q:new URLSearchParams(qs)};}
 function ir(x){if(location.hash!==x)location.hash=x;else render();}
 async function render(){
   const r=rota();const mudouTela=r.nome!==rotaAtual;rotaAtual=r.nome;
-  document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.r===r.nome));
+  document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.r===r.nome||(a.dataset.r==="gestores"&&r.nome==="administradores")));
   if(mudouTela)window.scrollTo(0,0);
   try{
-    if(r.nome==="ranking")await telaRanking(r);
+    if(r.nome==="painel")await telaPainel(r);
+    else if(r.nome==="ranking")await telaRanking(r);
     else if(r.nome==="gestores")await telaGrupos(r,"gestor");
     else if(r.nome==="administradores")await telaGrupos(r,"admin");
     else if(r.nome==="estruturados")await telaEstruturados(r);
@@ -374,11 +504,11 @@ async function render(){
 }
 window.addEventListener("hashchange",render);
 document.addEventListener("keydown",e=>{
-  const mapa={F1:"#/ranking",F2:"#/compara",F3:"#/gestores",F4:"#/administradores",F5:"#/estruturados"};
+  const mapa={F1:"#/painel",F2:"#/ranking",F3:"#/compara",F4:"#/gestores",F5:"#/estruturados"};
   if(mapa[e.key]){e.preventDefault();ir(mapa[e.key]);}
 });
 
-// ================================================================ F2 COMPARA
+// ================================================================ F3 COMPARA
 const CORES=["var(--s1)","var(--s2)","var(--s3)","var(--s4)","var(--s5)","var(--s6)","var(--s7)","var(--s8)"];
 const MAXF=8;
 function estadoCompara(q){
@@ -411,7 +541,7 @@ async function telaCompara(r){
   $("#cmp-de").value=st.de;$("#cmp-ate").value=st.ate;
   $("#cmp-de").onchange=e=>{st.de=e.target.value;irCompara(st);};$("#cmp-ate").onchange=e=>{st.ate=e.target.value;irCompara(st);};
   const res=$("#cmp-res");
-  if(!st.f.length){res.innerHTML='<section class="painel"><div class="cab">Início</div><div class="corpo"><div>Busque um fundo por nome ou CNPJ para começar. Até 8 lado a lado.<br><span class="fraco">Setas ↑↓ navegam a lista, Enter seleciona. F1 a F5 trocam de tela. No ranking (F1) dá para marcar vários fundos e mandar para cá.</span></div></div></section>';$("#cmp-range").textContent="";return;}
+  if(!st.f.length){res.innerHTML='<section class="painel"><div class="cab">Início</div><div class="corpo"><div>Busque um fundo por nome ou CNPJ para começar. Até 8 lado a lado.<br><span class="fraco">Setas ↑↓ navegam a lista, Enter seleciona. F1 a F5 trocam de tela. No ranking (F2) dá para marcar vários fundos e mandar para cá.</span></div></div></section>';$("#cmp-range").textContent="";return;}
   res.innerHTML='<div class="carregando">Carregando séries…</div>';
   const fs=await Promise.all(st.f.map(id=>ficha(id).catch(()=>null)));
   const fim=st.ate||m.ultima_cota;let ini=st.de||inicioJanela(fim,st.j);
@@ -429,12 +559,13 @@ async function telaCompara(r){
   const rotJ=st.de||st.ate?"período":"janela "+(JANELAS.find(x=>x[0]===st.j)||[0,""])[1];
   let html="";
   if(semDiario.length)html+='<section class="painel aviso"><div class="cab">Informação não disponível</div><div class="corpo"><div><span style="color:var(--aviso)">Alguns fundos escolhidos não publicam informe diário.</span><br>'+semDiario.map(n=>"· "+h(n)).join("<br>")+'<br><br><span class="fraco">FIDC, FII, FIP e Fiagro reportam por documento periódico mensal, não por cota diária. O que existe deles (patrimônio, cotistas, situação) está na ficha de cada fundo e na tela </span><a href="#/estruturados" style="color:var(--ciano)">F5 ESTRUTURADOS</a>.</div></div></section>';
-  html+='<section class="painel"><div class="cab">Rentabilidade acumulada · '+h(rotJ)+(series.length?botoesExportar("cmp-x"):"")+'</div><div class="corpo"><div class="grafico" id="cmp-g"></div><div id="cmp-leg"></div></div></section>';
+  html+='<section class="painel"><div class="cab">Rentabilidade acumulada · '+h(rotJ)+(series.length?'<span class="linha">'+seletorCesta("cmp-cst")+botoesExportar("cmp-x")+'</span>':"")+'</div><div class="corpo"><div class="grafico" id="cmp-g"></div><div id="cmp-leg"></div></div></section>';
   if(series.length)html+='<section class="painel"><div class="cab">Tabela comparativa<span class="sub">melhor da linha em âmbar sublinhado</span></div><div class="tw"><table id="cmp-t"></table></div></section>';
   if(series.length>1)html+='<section class="painel"><div class="cab">Matriz de correlação<span class="sub">retornos diários das datas em que ambos publicaram</span></div><div class="tw"><table class="mapa" id="cmp-c"></table></div></section>';
   res.innerHTML=html;
   const todas=series.concat(bs);
   grafico($("#cmp-g"),todas,{titulo:"Rentabilidade acumulada"});$("#cmp-leg").innerHTML=legenda(todas);
+  ligaSeletorCesta($("#cmp-cst"),()=>series.map(x=>x.id));
   ligaExportar("cmp-x",async()=>{
     const datas=[...new Set(todas.flatMap(x=>x.d))].sort(),pc=x=>x==null?null:Math.round(x*1e8)/1e6;
     const mapas=todas.map(x=>{const m2=new Map();x.d.forEach((y,i)=>m2.set(y,i));return m2;});
@@ -458,7 +589,7 @@ async function telaCompara(r){
     ["Classe",s=>s.f.classe||s.f.tipo,x=>x||"—",0],["Público",s=>s.f.publico,x=>x||"—",0],["Gestor",s=>s.f.gestor,x=>x||"—",0],["Administrador",s=>s.f.admin,x=>x||"—",0],
   ];
   const cor=new Set(["Retorno no período","Retorno anualizado","CDI no período","Drawdown máximo","VaR 95% diário","Melhor dia","Pior dia","Alfa de Jensen (a.a.)"]);
-  let t='<thead><tr><th class="l">Indicador</th>'+series.map(s=>'<th><a href="#/fundo/'+encodeURIComponent(s.id)+'" style="color:'+s.cor+'" title="'+h(s.nome)+'">'+h(s.nome.slice(0,28))+(s.nome.length>28?"…":"")+'</a></th>').join("")+'</tr></thead><tbody>';
+  let t='<thead><tr><th class="l">Indicador</th>'+series.map(s=>'<th>'+estrela(s.id)+'<a href="#/fundo/'+encodeURIComponent(s.id)+'" style="color:'+s.cor+'" title="'+h(s.nome)+'">'+h(s.nome.slice(0,28))+(s.nome.length>28?"…":"")+'</a></th>').join("")+'</tr></thead><tbody>';
   for(const l of L){
     if(l[0]==="sec"){t+='<tr class="sec"><td colspan="'+(series.length+1)+'">'+l[1]+'</td></tr>';continue;}
     const vals=series.map(l[1]);let bi=-1;
@@ -476,7 +607,7 @@ async function telaCompara(r){
 function plMedio(f,ini,fim){if(!f.sem)return null;let s=0,n=0;f.sem.d.forEach((x,i)=>{if((!ini||x>=ini)&&x<=fim&&f.sem.p[i]>0){s+=f.sem.p[i];n++;}});return n?s/n:null;}
 function prazo(f){if(f.conversao==null&&f.pagamento==null)return"—";return"D+"+(f.conversao??"?")+" cotização · D+"+(f.pagamento??"?")+" pagamento";}
 
-// ================================================================ F1 RANKING (tabela reutilizada por F3/F4/F5)
+// ================================================================ F2 RANKING (tabela reutilizada por F3/F4/F5)
 const UNIVERSOS=[["todos","Todos",0],["aberto","Aberto",2],["exclusivo","Exclusivo",4]];
 const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["situacao","Situação","l"],["ret12","Ret 12M"],["vol12","Vol"],["sharpe12","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["gestor","Gestor","l"],["inicio","Início"]];
 function filtrosPadrao(){return{q:"",u:"todos",classe:"",sit:"",serie:"todas",plmin:"",taxamax:"",ord:"pl",dir:-1};}
@@ -515,7 +646,7 @@ function montarRanking(el,op){
       <div style="margin-left:auto;text-align:right"><div class="rotulo">População</div><div style="color:var(--ambar);font-size:16px;font-weight:700" id="rk-n">—</div><div class="fraco" style="font-size:10px" id="rk-nd"></div></div>
     </div>
   </div></section>
-  <section class="painel"><div class="cab">Ranking<span class="linha"><span class="sub" id="rk-sel">0 selecionados</span><button class="btn" id="rk-cmp" disabled>Comparar ▸</button></span></div>
+  <section class="painel"><div class="cab">Ranking<span class="linha"><span class="sub" id="rk-sel">0 selecionados</span><button class="btn" id="rk-cmp" disabled>Comparar ▸</button>${seletorCesta("rk-cst")}</span></div>
     <div class="tw"><table id="rk-t"></table></div><div class="corpo" id="rk-mais" hidden><div><button class="btn" id="rk-mais-b">Mostrar mais</button></div></div></section>`;
   const q=$("#rk-q",el);q.value=F.q;$("#rk-c",el).value=F.classe;$("#rk-s",el).value=F.sit;$("#rk-pl",el).value=F.plmin;
   const botoes=()=>{$("#rk-u",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.u===F.u));$("#rk-se",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.s===F.serie));};
@@ -527,6 +658,7 @@ function montarRanking(el,op){
   $("#rk-pl",el).onchange=e=>{F.plmin=e.target.value;muda();};
   $("#rk-mais-b",el).onclick=()=>{mostrar+=300;desenha();};
   $("#rk-cmp",el).onclick=()=>adicionarComparar([...sel]);
+  ligaSeletorCesta($("#rk-cst",el),()=>[...sel]);
   botoes();
   function desenha(){
     const filtrada=aplicaFiltros(op.lista,F,op.fixo),ord=ordena(filtrada,F);
@@ -535,7 +667,7 @@ function montarRanking(el,op){
     let t='<thead><tr>'+COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a||"")+'" data-k="'+k+'">'+l+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
     for(const f of vis){
       t+='<tr><td><input type="checkbox" data-id="'+h(f.id)+'" aria-label="Selecionar '+h(f.nome)+'"'+(sel.has(f.id)?" checked":"")+'></td>'+
-        '<td class="nome l"><a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+'</td>'+
+        '<td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+'</td>'+
         '<td class="l">'+h(f.classe||f.tipo||"—")+'</td><td class="l fraco" style="white-space:normal;min-width:110px">'+h(f.situacao||"—")+'</td>'+
         '<td class="'+cls(f.ret12)+'">'+pct(f.ret12)+'</td><td>'+pct(f.vol12,false)+'</td><td>'+num(f.sharpe12)+'</td>'+
         '<td>'+(f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"%")+'</td><td>'+brl(f.pl)+'</td>'+
@@ -546,8 +678,8 @@ function montarRanking(el,op){
     $("#rk-mais",el).hidden=ord.length<=mostrar;
   }
   $("#rk-t",el).onclick=e=>{const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;if(F.ord===k)F.dir*=-1;else{F.ord=k;F.dir=["nome","classe","situacao","gestor"].includes(k)?1:-1;}op.aoMudar&&op.aoMudar(F);desenha();}};
-  $("#rk-t",el).onchange=e=>{const c=e.target.closest("input[data-id]");if(!c)return;if(c.checked){if(sel.size>=MAXF){c.checked=false;return;}sel.add(c.dataset.id);}else sel.delete(c.dataset.id);
-    $("#rk-sel",el).textContent=sel.size+" selecionado"+(sel.size===1?"":"s")+(sel.size>=MAXF?" (máximo)":"");$("#rk-cmp",el).disabled=!sel.size;};
+  $("#rk-t",el).onchange=e=>{const c=e.target.closest("input[data-id]");if(!c)return;if(c.checked)sel.add(c.dataset.id);else sel.delete(c.dataset.id);
+    $("#rk-sel",el).textContent=sel.size+" selecionado"+(sel.size===1?"":"s")+(sel.size>MAXF?" (a comparação usa os 8 primeiros)":"");$("#rk-cmp",el).disabled=!sel.size;};
   desenha();
 }
 async function telaRanking(){
@@ -565,7 +697,8 @@ async function telaGrupos(r,campo){
   for(const f of listaV){const g=f[campo];if(!g)continue;let o=grupos.get(g);if(!o){o={nome:g,n:0,at:0,pl:0};grupos.set(g,o);}o.n++;if(f.ativo){o.at++;if(f.pl>0)o.pl+=f.pl;}}
   const lista=[...grupos.values()];const st={q:"",ord:"pl",dir:-1};
   const escolhido=r.arg||"";
-  app.innerHTML=`<section class="painel"><div class="cab">${nomeTela} · busca<span class="sub">${nf0.format(lista.length)} ${nomeTela.toLowerCase()}</span></div><div class="corpo"><div class="prompt"><input type="search" id="gr-q" placeholder="Buscar ${nomeTela.toLowerCase()} por nome…" aria-label="Buscar"></div></div>
+  app.innerHTML=`<div class="abas"><a class="btn" href="#/gestores" style="${campo==="gestor"?"background:var(--ambar);color:var(--fundo)":""}">Gestores</a><a class="btn" href="#/administradores" style="margin-left:-1px;${campo==="admin"?"background:var(--ambar);color:var(--fundo)":""}">Administradores</a></div>
+  <section class="painel"><div class="cab">${nomeTela} · busca<span class="sub">${nf0.format(lista.length)} ${nomeTela.toLowerCase()}</span></div><div class="corpo"><div class="prompt"><input type="search" id="gr-q" placeholder="Buscar ${nomeTela.toLowerCase()} por nome…" aria-label="Buscar"></div></div>
     <div class="tw lista"><table id="gr-t"></table></div></section><div id="gr-f" style="display:grid;gap:10px"></div>`;
   function desenha(){
     const tk=norm(st.q).split(/\s+/).filter(Boolean);
@@ -596,12 +729,12 @@ async function telaEstruturados(){
 async function telaFundo(r){
   const id=r.arg,q=r.q;
   const [f]=await Promise.all([ficha(id).catch(()=>null),meta(),benchs()]);
-  if(!f){app.innerHTML='<section class="painel aviso"><div class="cab">Fundo não encontrado</div><div class="corpo">Não há dados para "'+h(id)+'". Use o ranking em F1 ou a busca em F2.</div></section>';return;}
+  if(!f){app.innerHTML='<section class="painel aviso"><div class="cab">Fundo não encontrado</div><div class="corpo">Não há dados para "'+h(id)+'". Use o ranking (F2) ou a busca da comparação (F3).</div></section>';return;}
   const aba=q.get("aba")||"desempenho",jan=q.get("j")||"12m",de=q.get("de")||"",ate=q.get("ate")||"";
   const link=o=>{const p=new URLSearchParams({aba,j:jan});if(de)p.set("de",de);if(ate)p.set("ate",ate);for(const k in o){if(o[k]==="")p.delete(k);else p.set(k,o[k]);}return"#/fundo/"+encodeURIComponent(id)+"?"+p.toString();};
   const k=(rot,val)=>'<div><div class="k">'+rot+'</div><div class="v">'+val+'</div></div>';
   app.innerHTML=`
-  <section class="painel"><div class="cab"><span style="color:var(--texto)">${h(f.nome)}</span><a class="btn" href="#" id="fd-cmp">Comparar ▸</a></div><div class="corpo">
+  <section class="painel"><div class="cab"><span style="color:var(--texto)">${estrela(f.id)}${h(f.nome)}</span><span class="linha">${seletorCesta("fd-cst")}<a class="btn" href="#" id="fd-cmp">Comparar ▸</a></span></div><div class="corpo">
     <div class="kv">
       ${k("CNPJ",cnpjFmt(f.cnpj))}${k("Classe",h(f.classe||f.tipo||"—"))}${k("Situação",h(f.ativo?"ativo":(f.situacao||"encerrado").toLowerCase()))}
       ${k("Início do fundo",dt(f.inicio))}${k("Série na base",f.primeira?dt(f.primeira)+" → "+dt(f.ultima):"—")}${k("Pregões",f.pregoes?nf0.format(f.pregoes):"—")}
@@ -610,6 +743,7 @@ async function telaFundo(r){
   <div class="abas">${["desempenho","carteira","cadastro"].map(a=>'<button type="button" aria-pressed="'+(a===aba)+'" data-a="'+a+'">'+a+'</button>').join("")}</div>
   <div id="fd-c" style="display:grid;gap:10px"></div>`;
   $("#fd-cmp").onclick=e=>{e.preventDefault();adicionarComparar([f.id]);};
+  ligaSeletorCesta($("#fd-cst"),()=>[f.id]);
   document.querySelector(".abas").onclick=e=>{const b=e.target.closest("button");if(b)ir(link({aba:b.dataset.a}));};
   const c=$("#fd-c");
   if(aba==="cadastro"){
