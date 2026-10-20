@@ -11,7 +11,7 @@ Terminal de fundos de investimento brasileiros com dados públicos da CVM:
 
 Atalhos: F1 a F5 trocam de tela. Tema claro e escuro.
 
-**Site:** https://comparadorfundos.com.br (o endereço antigo, jgasbandeira.github.io/lupa-de-fundos, redireciona para ele)
+**Site:** https://jgasbandeira.github.io/lupa-de-fundos/
 
 ## Como funciona
 
