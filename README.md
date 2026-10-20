@@ -3,9 +3,9 @@
 Terminal de fundos de investimento brasileiros com dados públicos da CVM:
 
 - **F1 Painel**: favoritos (estrela ☆ em qualquer tela) e peer groups de fundos personalizados, salvos no navegador de cada pessoa. Peer groups têm link para compartilhar; o painel inteiro pode ser exportado e importado. O site abre no Painel para quem já tem favoritos ou peer groups, e no Ranking para os demais.
-- **F2 Ranking**: só fundos líquidos (com cota diária; FII, FIDC, FIP, Fiagro e afins ficam fora e aparecem em F5), com filtros por universo, classe, situação, série e PL; colunas ordenáveis (inclusive captação líquida em 12 meses); seleção vai para a comparação ou para um peer group.
+- **F2 Ranking**: só fundos líquidos (com cota diária; FII, FIDC, FIP, Fiagro e afins ficam fora e aparecem em F5), com janelas de 1M, no ano, 12M, 24M e 36M (retorno, % do CDI, volatilidade e Sharpe), filtros por universo, classe, situação e PL e a opção "Só fundos para investidor" (ligada por padrão: tira exclusivos, masters e fundos de um cotista só); colunas ordenáveis, inclusive captação líquida em 12 meses; seleção vai para a comparação ou para um peer group.
 - **F3 Compara**: até 8 fundos lado a lado, janelas de 1M a MAX ou datas livres, mais de 30 indicadores (Sharpe, Sortino, VaR, beta, alfa de Jensen…), excesso, tracking error e information ratio contra os benchmarks escolhidos, matriz de correlação e exportação em CSV.
-- **F4 Gestores e administradores**: número de fundos líquidos e PL total; ao escolher um, a lista dos fundos dele.
+- **F4 Gestores e administradores**: PL, market share e captação líquida (último mês fechado e 12 meses) somando os fundos líquidos para investidor; ao escolher um, captação mês a mês e PL dos últimos 36 meses (com CSV); ao escolher um, a lista dos fundos dele.
 - **F5 Estruturados**: FII, FIDC, FIP, Fiagro e afins, com PL, cotistas e rentabilidade mensal (informes mensais da CVM).
 - **Ficha do fundo**: desempenho contra até 6 benchmarks à escolha (padrão: CDI e o indicador de desempenho do cadastro), tabela fundo × benchmark, PL e cotistas, captação e resgates mês a mês (com exportação em CSV), retorno mês a mês, carteira (últimas 12 competências da CDA), cadastro completo e exportação do histórico de cotas em CSV.
 

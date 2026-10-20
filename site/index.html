@@ -766,13 +766,19 @@ function prazo(f){if(f.conversao==null&&f.pagamento==null)return"—";return"D+"
 
 // ================================================================ F2 RANKING (tabela reutilizada por F3/F4/F5)
 const UNIVERSOS=[["todos","Todos",0],["aberto","Aberto",2],["exclusivo","Exclusivo",4]];
-const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["situacao","Situação","l"],["ret12","Ret 12M"],["vol12","Vol"],["sharpe12","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["cap12","Capt. líq. 12M"],["gestor","Gestor","l"],["inicio","Início"]];
-function filtrosPadrao(){return{q:"",u:"todos",classe:"",sit:"",serie:"todas",plmin:"",taxamax:"",ord:"pl",dir:-1};}
+// Janelas do ranking: métricas pré-calculadas no índice (r = retorno, c = % do CDI, v = volatilidade, s = Sharpe)
+const JAN_RK=[["1m","1M"],["ano","No ano"],["12","12M"],["24","24M"],["36","36M"]];
+const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["ret","Ret"],["pcdi","% CDI"],["vol","Vol"],["sharpe","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["cap12","Capt. líq. 12M"],["gestor","Gestor","l"],["inicio","Início"]];
+const PREF={ret:"r",pcdi:"c",vol:"v",sharpe:"s"};
+const valorRk=(f,k,F)=>PREF[k]?f[PREF[k]+F.jan]:f[k];
+function filtrosPadrao(){return{q:"",u:"todos",classe:"",sit:"",serie:"todas",plmin:"",taxamax:"",ord:"pl",dir:-1,jan:"12",inv:true};}
+function ajustaF(F){if(!JAN_RK.some(j=>j[0]===F.jan))F.jan="12";const velho={ret12:"ret",vol12:"vol",sharpe12:"sharpe"};if(velho[F.ord])F.ord=velho[F.ord];if(F.ord==="situacao")F.ord="pl";if(typeof F.inv!=="boolean")F.inv=true;return F;}
 function aplicaFiltros(lista,F,fixo){
   const tk=norm(F.q).split(/\s+/).filter(Boolean),okN=casaNome(F.q),dig=F.q.replace(/[.\-\/\s]/g,"");const um=(UNIVERSOS.find(u=>u[0]===F.u)||UNIVERSOS[0])[2];
   const plmin=F.plmin===""?null:+F.plmin,tmax=F.taxamax===""?null:+F.taxamax;
   return lista.filter(f=>{
     if(fixo&&!fixo(f))return false;
+    if(F.inv&&F.usaInv&&!f.inv)return false;
     if(tk.length){if(/^\d{3,}$/.test(dig)){if(!f.cnpj.startsWith(dig))return false;}else if(!okN(f.bn))return false;}
     if(um&&!(f.univ&um))return false;
     if(F.classe&&(f.classe||f.tipo)!==F.classe)return false;
@@ -783,10 +789,10 @@ function aplicaFiltros(lista,F,fixo){
     if(tmax!=null&&!(f.taxa_adm!=null&&f.taxa_adm<=tmax))return false;
     return true;});
 }
-function ordena(lista,F){const k=F.ord,d=F.dir;return lista.slice().sort((a,b)=>{const x=a[k],y=b[k];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*d;});}
+function ordena(lista,F){const k=F.ord,d=F.dir;return lista.slice().sort((a,b)=>{const x=valorRk(a,k,F),y=valorRk(b,k,F);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*d;});}
 
 function montarRanking(el,op){
-  const F=op.F;if(!UNIVERSOS.some(u=>u[0]===F.u))F.u="todos";F.taxamax="";const sel=new Set();let mostrar=200;
+  const F=ajustaF(op.F);F.usaInv=!!op.investidor;if(!UNIVERSOS.some(u=>u[0]===F.u))F.u="todos";F.taxamax="";const sel=new Set();let mostrar=200;
   const base=op.fixo?op.lista.filter(op.fixo):op.lista;
   const classes=[...new Set(base.map(f=>f.classe||f.tipo).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
   const sitCont=new Map();base.forEach(f=>{if(f.situacao)sitCont.set(f.situacao,(sitCont.get(f.situacao)||0)+1);});
@@ -799,6 +805,8 @@ function montarRanking(el,op){
       <div><div class="rotulo">Classe</div><select id="rk-c"><option value="">todas</option>${classes.map(c=>'<option>'+h(c)+'</option>').join("")}</select></div>
       <div><div class="rotulo">Situação</div><select id="rk-s"><option value="">todas</option>${sits.map(([s,n])=>'<option value="'+h(s)+'">'+h(s)+' ('+nf0.format(n)+')</option>').join("")}</select></div>
       <div${op.semSerie?" hidden":""}><div class="rotulo">Série</div><div class="seg" id="rk-se"><button type="button" data-s="todas">Todas</button><button type="button" data-s="diaria">Diária</button><button type="button" data-s="mensal">Só mensal</button></div></div>
+      <div><div class="rotulo">Janela</div><div class="seg" id="rk-j">${JAN_RK.map(j=>'<button type="button" data-j="'+j[0]+'">'+j[1]+'</button>').join("")}</div></div>
+      ${op.investidor?'<label class="canc" title="Esconde fundos exclusivos, masters e fundos com um único cotista (espelhos e veículos internos), que repetem o mesmo produto no ranking"><input type="checkbox" id="rk-inv"> Só fundos para investidor</label>':""}
       <div><div class="rotulo">PL mínimo (R$)</div><input type="number" id="rk-pl" min="0" step="1000000" placeholder="0" style="width:130px"></div>
       <div style="margin-left:auto;text-align:right"><div class="rotulo">População</div><div style="color:var(--ambar);font-size:16px;font-weight:700" id="rk-n">—</div><div class="fraco" style="font-size:10px" id="rk-nd"></div></div>
     </div>
@@ -806,10 +814,12 @@ function montarRanking(el,op){
   <section class="painel"><div class="cab">Ranking<span class="linha"><span class="sub" id="rk-sel">0 selecionados</span><button class="btn" id="rk-cmp" disabled>Comparar ▸</button>${seletorCesta("rk-cst")}</span></div>
     <div class="tw"><table id="rk-t"></table></div><div class="corpo" id="rk-mais" hidden><div><button class="btn" id="rk-mais-b">Mostrar mais</button></div></div></section>`;
   const q=$("#rk-q",el);q.value=F.q;$("#rk-c",el).value=F.classe;$("#rk-s",el).value=F.sit;$("#rk-pl",el).value=F.plmin;
-  const botoes=()=>{$("#rk-u",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.u===F.u));$("#rk-se",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.s===F.serie));};
+  const botoes=()=>{$("#rk-j",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.j===F.jan));$("#rk-u",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.u===F.u));$("#rk-se",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.s===F.serie));};
   let tm;const muda=()=>{mostrar=200;op.aoMudar&&op.aoMudar(F);desenha();};
   q.oninput=()=>{F.q=q.value;clearTimeout(tm);tm=setTimeout(muda,150);};
   $("#rk-u",el).onclick=e=>{const b=e.target.closest("button");if(b){F.u=b.dataset.u;botoes();muda();}};
+  $("#rk-j",el).onclick=e=>{const b=e.target.closest("button");if(b){F.jan=b.dataset.j;botoes();muda();}};
+  const inv=$("#rk-inv",el);if(inv){inv.checked=F.inv;inv.onchange=()=>{F.inv=inv.checked;muda();};}
   $("#rk-se",el).onclick=e=>{const b=e.target.closest("button");if(b){F.serie=b.dataset.s;botoes();muda();}};
   $("#rk-c",el).onchange=e=>{F.classe=e.target.value;muda();};$("#rk-s",el).onchange=e=>{F.sit=e.target.value;muda();};
   $("#rk-pl",el).onchange=e=>{F.plmin=e.target.value;muda();};
@@ -821,12 +831,13 @@ function montarRanking(el,op){
     const filtrada=aplicaFiltros(op.lista,F,op.fixo),ord=ordena(filtrada,F);
     $("#rk-n",el).textContent=nf0.format(filtrada.length);$("#rk-nd",el).textContent="fundos elegíveis no universo "+(UNIVERSOS.find(u=>u[0]===F.u)||UNIVERSOS[0])[1].toLowerCase();
     const vis=ord.slice(0,mostrar);
-    let t='<thead><tr>'+COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a||"")+'" data-k="'+k+'">'+l+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
+    const jl=(JAN_RK.find(j=>j[0]===F.jan)||[0,""])[1];
+    let t='<thead><tr>'+COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a||"")+'" data-k="'+k+'">'+l+(PREF[k]?" "+jl:"")+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
     for(const f of vis){
       t+='<tr><td><input type="checkbox" data-id="'+h(f.id)+'" aria-label="Selecionar '+h(f.nome)+'"'+(sel.has(f.id)?" checked":"")+'></td>'+
         '<td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+'</td>'+
-        '<td class="l">'+h(f.classe||f.tipo||"—")+'</td><td class="l fraco" style="white-space:normal;min-width:110px">'+h(f.situacao||"—")+'</td>'+
-        '<td class="'+cls(f.ret12)+'">'+pct(f.ret12)+'</td><td>'+pct(f.vol12,false)+'</td><td>'+num(f.sharpe12)+'</td>'+
+        '<td class="l">'+h(f.classe||f.tipo||"—")+(f.ativo?"":'<span class="tag enc">'+h((f.situacao||"encerrado").toUpperCase().slice(0,14))+'</span>')+'</td>'+
+        (()=>{const r=valorRk(f,"ret",F),c=valorRk(f,"pcdi",F);return'<td class="'+cls(r)+'">'+pct(r)+'</td><td>'+(c==null?"—":nf0.format(c*100).replace("-","−")+"%")+'</td><td>'+pct(valorRk(f,"vol",F),false)+'</td><td>'+num(valorRk(f,"sharpe",F))+'</td>';})()+
         '<td>'+(f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"%")+'</td><td>'+brl(f.pl)+'</td><td class="'+cls(f.cap12)+'">'+brlS(f.cap12)+'</td>'+
         '<td class="l fraco" style="max-width:240px;overflow:hidden;text-overflow:ellipsis">'+h(f.gestor||"—")+'</td><td>'+dt(f.inicio)+'</td></tr>';
     }
@@ -834,7 +845,7 @@ function montarRanking(el,op){
     $("#rk-t",el).innerHTML=t+'</tbody>';
     $("#rk-mais",el).hidden=ord.length<=mostrar;
   }
-  $("#rk-t",el).onclick=e=>{const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;if(F.ord===k)F.dir*=-1;else{F.ord=k;F.dir=["nome","classe","situacao","gestor"].includes(k)?1:-1;}op.aoMudar&&op.aoMudar(F);desenha();}};
+  $("#rk-t",el).onclick=e=>{const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;if(F.ord===k)F.dir*=-1;else{F.ord=k;F.dir=["nome","classe","gestor","vol"].includes(k)?1:-1;}op.aoMudar&&op.aoMudar(F);desenha();}};
   $("#rk-t",el).onchange=e=>{const c=e.target.closest("input[data-id]");if(!c)return;if(c.checked)sel.add(c.dataset.id);else sel.delete(c.dataset.id);
     $("#rk-sel",el).textContent=sel.size+" selecionado"+(sel.size===1?"":"s")+(sel.size>MAXF?" (a comparação usa os 8 primeiros)":"");$("#rk-cmp",el).disabled=!sel.size;};
   desenha();
@@ -844,33 +855,59 @@ async function telaRanking(){
   const F=filtrosPadrao();try{Object.assign(F,JSON.parse(ls("lupa-rk")||"{}"));}catch(e){}F.serie="todas";
   if(!incluirCancelados&&F.sit==="Cancelada")F.sit="";
   app.innerHTML='<div id="rk" style="display:grid;gap:10px"></div>';
-  montarRanking($("#rk"),{lista,F,titulo:"Filtros · só fundos líquidos (estruturados ficam em F5)",semSerie:true,aoMudar:x=>ls("lupa-rk",JSON.stringify(x))});
+  montarRanking($("#rk"),{lista,F,titulo:"Filtros · só fundos líquidos (estruturados ficam em F5)",semSerie:true,investidor:true,aoMudar:x=>{const{usaInv,...y}=x;ls("lupa-rk",JSON.stringify(y));}});
 }
 
 // ================================================================ F3 GESTORES / F4 ADMINISTRADORES
 async function telaGrupos(r,campo){
-  const listaV=(await listaVisivel()).filter(liquido);const nomeTela=campo==="gestor"?"Gestores":"Administradores",sing=campo==="gestor"?"gestor":"administrador";
-  const grupos=new Map();
-  for(const f of listaV){const g=f[campo];if(!g)continue;let o=grupos.get(g);if(!o){o={nome:g,n:0,at:0,pl:0};grupos.set(g,o);}o.n++;if(f.ativo){o.at++;if(f.pl>0)o.pl+=f.pl;}}
+  const [listaT,G]=await Promise.all([listaVisivel(),getJson("grupos.txt").catch(()=>null)]);
+  const listaV=listaT.filter(liquido);
+  const nomeTela=campo==="gestor"?"Gestores":"Administradores",sing=campo==="gestor"?"gestor":"administrador";
+  const GG=G&&G[campo]||{},NM=G?GG[Object.keys(GG)[0]]?.c.length||37:37;
+  // meses da série de grupos
+  const mesesG=[];if(G){let a=+G.m0.slice(0,4),m=+G.m0.slice(5,7);for(let i=0;i<NM;i++){mesesG.push(a+"-"+String(m).padStart(2,"0"));if(++m>12){m=1;a++;}}}
+  const ult=NM-1,mesAnt=NM-2; // mês corrente (parcial) e último mês fechado
+  const grupos=new Map();let plTotal=0;
+  for(const f of listaV){if(!f.inv||!f.ativo)continue;const g=f[campo];if(!g)continue;let o=grupos.get(g);if(!o){o={nome:g,n:0,pl:0};grupos.set(g,o);}o.n++;if(f.pl>0){o.pl+=f.pl;plTotal+=f.pl;}}
+  for(const o of grupos.values()){const s2=GG[o.nome];if(!s2)continue;const liq=k=>(s2.c[k]-s2.r[k])*1000;
+    o.capm=liq(mesAnt);let t=0;for(let k=NM-12;k<NM;k++)t+=liq(k);o.cap12=t;o.capPl=o.pl>0?t/o.pl:null;}
+  for(const o of grupos.values())o.share=plTotal?o.pl/plTotal:null;
   const lista=[...grupos.values()];const st={q:"",ord:"pl",dir:-1};
   const escolhido=r.arg||"";
+  const mesRot=mesesG[mesAnt]?MES[+mesesG[mesAnt].slice(5,7)-1]+"/"+mesesG[mesAnt].slice(2,4):"mês";
   app.innerHTML=`<div class="abas"><a class="btn" href="#/gestores" style="${campo==="gestor"?"background:var(--ambar);color:var(--fundo)":""}">Gestores</a><a class="btn" href="#/administradores" style="margin-left:-1px;${campo==="admin"?"background:var(--ambar);color:var(--fundo)":""}">Administradores</a></div>
-  <section class="painel"><div class="cab">${nomeTela} · busca<span class="sub">${nf0.format(lista.length)} ${nomeTela.toLowerCase()} · só fundos líquidos</span></div><div class="corpo"><div class="prompt"><input type="search" id="gr-q" placeholder="Buscar ${nomeTela.toLowerCase()} por nome…" aria-label="Buscar"></div></div>
+  <section class="painel"><div class="cab">${nomeTela} · captação e patrimônio<span class="sub">${nf0.format(lista.length)} ${nomeTela.toLowerCase()} · fundos líquidos para investidor, ativos</span></div><div class="corpo"><div class="prompt"><input type="search" id="gr-q" placeholder="Buscar ${nomeTela.toLowerCase()} por nome…" aria-label="Buscar"></div>
+    <div class="fraco" style="font-size:11px">Soma dos fundos líquidos para investidor (sem exclusivos, masters e fundos de um cotista só, para não contar o mesmo dinheiro duas vezes). Captação líquida = captação − resgates informados à CVM. 12M inclui o mês corrente até a última data publicada.</div></div>
     <div class="tw lista"><table id="gr-t"></table></div></section><div id="gr-f" style="display:grid;gap:10px"></div>`;
   function desenha(){
     const tk=norm(st.q).split(/\s+/).filter(Boolean),okG=casaNome(st.q);
-    const l=lista.filter(g=>!tk.length||okG(norm(g.nome))).sort((a,b)=>{const x=a[st.ord],y=b[st.ord];return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*st.dir;}).slice(0,500);
+    const l=lista.filter(g=>!tk.length||okG(norm(g.nome))).sort((a,b)=>{const x=a[st.ord],y=b[st.ord];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*st.dir;}).slice(0,500);
     const hd=(k,lb,a)=>'<th class="ord '+(a||"")+'" data-k="'+k+'">'+lb+(st.ord===k?(st.dir<0?" ▼":" ▲"):"")+'</th>';
-    $("#gr-t").innerHTML='<thead><tr>'+hd("nome",sing,"l")+hd("n","Fundos")+hd("at","Ativos")+hd("pl","PL total")+'</tr></thead><tbody>'+
-      l.map(g=>'<tr class="'+(g.nome===escolhido?"sel":"")+'" data-g="'+h(g.nome)+'" style="cursor:pointer"><td class="l">'+h(g.nome)+'</td><td>'+nf0.format(g.n)+'</td><td>'+nf0.format(g.at)+'</td><td>'+brl(g.pl)+'</td></tr>').join("")+'</tbody>';
+    $("#gr-t").innerHTML='<thead><tr>'+hd("nome",sing,"l")+hd("n","Fundos")+hd("pl","PL total")+hd("share","Market share")+hd("capm","Capt. líq. "+mesRot)+hd("cap12","Capt. líq. 12M")+hd("capPl","12M ÷ PL")+'</tr></thead><tbody>'+
+      l.map(g=>'<tr class="'+(g.nome===escolhido?"sel":"")+'" data-g="'+h(g.nome)+'" style="cursor:pointer"><td class="l">'+h(g.nome)+'</td><td>'+nf0.format(g.n)+'</td><td>'+brl(g.pl)+'</td><td>'+(g.share==null?"—":nf2.format(g.share*100)+"%")+'</td><td class="'+cls(g.capm)+'">'+brlS(g.capm)+'</td><td class="'+cls(g.cap12)+'">'+brlS(g.cap12)+'</td><td class="'+cls(g.capPl)+'">'+pct(g.capPl)+'</td></tr>').join("")+'</tbody>';
   }
   $("#gr-q").oninput=e=>{st.q=e.target.value;desenha();};
   $("#gr-t").onclick=e=>{const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;if(st.ord===k)st.dir*=-1;else{st.ord=k;st.dir=k==="nome"?1:-1;}desenha();return;}
     const tr=e.target.closest("tr[data-g]");if(tr)ir("#/"+(campo==="gestor"?"gestores":"administradores")+"/"+encodeURIComponent(tr.dataset.g));};
   desenha();
   const alvo=$("#gr-f");
-  if(!escolhido){alvo.innerHTML='<section class="painel"><div class="cab">Fundos</div><div class="corpo"><div class="fraco">Escolha um '+sing+' acima para ver os fundos sob sua responsabilidade. Os filtros são os mesmos do ranking, e a seleção leva os fundos para a comparação.</div></div></section>';return;}
-  montarRanking(alvo,{lista:listaV,fixo:f=>f[campo]===escolhido,F:filtrosPadrao(),titulo:"Fundos · "+escolhido,semSerie:true});
+  if(!escolhido){alvo.innerHTML='<section class="painel"><div class="cab">Detalhe</div><div class="corpo"><div class="fraco">Escolha um '+sing+' acima para ver a captação mês a mês, a evolução do patrimônio e os fundos que puxaram o movimento.</div></div></section>';return;}
+  const g=grupos.get(escolhido),s2=GG[escolhido];
+  const pos=k=>{const ord=lista.filter(x=>x[k]!=null).sort((a,b)=>b[k]-a[k]);const i=ord.findIndex(x=>x.nome===escolhido);return i<0?"—":(i+1)+"º de "+nf0.format(ord.length);};
+  alvo.innerHTML=(s2&&g?`<section class="painel"><div class="cab">${h(escolhido)} · captação mensal<span class="linha"><span class="sub">últimos 36 meses + mês corrente</span>${botoesExportar("gr-x")}</span></div><div class="corpo">
+    <div class="kv">${[["PL total",brl(g.pl)],["Market share",g.share==null?"—":nf2.format(g.share*100)+"%"],["Posição por PL",pos("pl")],["Capt. líq. "+mesRot,'<span class="'+cls(g.capm)+'">'+brlS(g.capm)+'</span>'],["Capt. líq. 12M",'<span class="'+cls(g.cap12)+'">'+brlS(g.cap12)+'</span>'],["Posição por captação 12M",pos("cap12")],["12M ÷ PL",'<span class="'+cls(g.capPl)+'">'+pct(g.capPl)+'</span>'],["Fundos",nf0.format(g.n)]].map(([a,b])=>'<div><div class="k">'+a+'</div><div class="v">'+b+'</div></div>').join("")}</div>
+    <div class="grafico" id="gr-fl"></div>
+    <div class="leg"><span><i style="background:var(--pos);opacity:.35;height:8px"></i>Captação</span><span><i style="background:var(--neg);opacity:.35;height:8px"></i>Resgates</span><span><i style="background:var(--texto);height:8px;width:6px"></i>Líquida</span></div></div></section>
+    <section class="painel"><div class="cab">${h(escolhido)} · patrimônio no fim de cada mês</div><div class="corpo"><div class="grafico" id="gr-pl"></div></div></section>`:"")+'<div id="gr-rk" style="display:grid;gap:10px"></div>';
+  if(s2&&g){
+    const o={m:mesesG,c:s2.c.map(x=>x*1000),r:s2.r.map(x=>x*1000)};
+    barras($("#gr-fl"),o);
+    const ip=s2.pl.findIndex(x=>x>0);
+    if(ip>=0)grafico($("#gr-pl"),[{nome:"PL",cor:"var(--pos)",d:mesesG.slice(ip).map(m=>m+"-15"),v:s2.pl.slice(ip).map(x=>x*1000)}],{fmt:brl,area:true,altura:180,margemEsq:82,titulo:"Patrimônio líquido",zero:true});
+    ligaExportar("gr-x",async()=>exportarCSV("captacao_"+norm(escolhido).replace(/[^a-z0-9]+/g,"_").slice(0,40)+".csv",["Mês","Captação (R$)","Resgates (R$)","Captação líquida (R$)","PL no fim do mês (R$)"],mesesG.map((m,i)=>[m,o.c[i],o.r[i],o.c[i]-o.r[i],s2.pl[i]?s2.pl[i]*1000:null])));
+  }
+  const F=filtrosPadrao();F.ord="cap12";
+  montarRanking($("#gr-rk"),{lista:listaV,fixo:f=>f[campo]===escolhido,F,titulo:"Fundos · "+escolhido,semSerie:true,investidor:true});
   const sel=document.querySelector("#gr-t tr.sel");if(sel)sel.scrollIntoView({block:"nearest"});
 }
 

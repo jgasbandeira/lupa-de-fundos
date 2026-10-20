@@ -918,24 +918,35 @@ function serieSemanal(d, p, n) {
   return { d0: sd[0], dd, p0: sp[0], dp, n0: sn_[0], dn };
 }
 
-// Métricas de 12 meses para o ranking (janela termina na data de referência do site)
-function metricas12(f, fatorCdi, refDia) {
-  if (f.d.length < 30 || f.ult < refDia - 10) return null;
-  let i0 = f.d.findIndex((x) => x >= refDia - 365);
-  if (i0 < 0) return null;
-  const d = f.d, q = f.q;
-  const n = d.length - i0;
-  if (n < 120 || d[i0] > refDia - 330) return null; // precisa cobrir quase 12 meses
-  const ret = q[q.length - 1] / q[i0] - 1;
+// Métricas por janela para o ranking. A janela termina na data de referência do site e começa no mesmo dia
+// N meses antes (no ano: 31/12 do ano anterior). Base = última cota até o início da janela (no máximo 10 dias antes).
+const JANELAS_RK = [["1m", 1], ["ano", 0], ["12", 12], ["24", 24], ["36", 36]];
+function inicioJanelaDia(refDia, meses) {
+  const r = new Date(refDia * DIA_MS);
+  if (meses === 0) return dia(`${r.getUTCFullYear() - 1}-12-31`);
+  let a = r.getUTCFullYear(), m = r.getUTCMonth() - meses;
+  while (m < 0) { m += 12; a--; }
+  const ult = new Date(Date.UTC(a, m + 1, 0)).getUTCDate();
+  return Math.round(Date.UTC(a, m, Math.min(r.getUTCDate(), ult)) / DIA_MS);
+}
+function metricasJanela(f, fatorCdi, refDia, meses) {
+  const d = f.d, q = f.q, n = d.length;
+  if (n < 3 || f.ult < refDia - 10) return null;
+  const ini = inicioJanelaDia(refDia, meses);
+  let lo = 0, hi = n - 1;
+  if (d[0] > ini) return null;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (d[m] <= ini) lo = m; else hi = m - 1; }
+  const i0 = lo, i1 = n - 1;
+  if (ini - d[i0] > 10 || i1 - i0 < 5) return null;
+  const ret = q[i1] / q[i0] - 1, k = i1 - i0;
   let s = 0, s2 = 0;
-  for (let i = i0 + 1; i < q.length; i++) { const r = q[i] / q[i - 1] - 1; s += r; s2 += r * r; }
-  const m = s / (n - 1), vol = Math.sqrt(Math.max(s2 / (n - 1) - m * m, 0) * (n - 1) / Math.max(n - 2, 1)) * Math.sqrt(252);
-  const anos = (n - 1) / 252, ann = ret > -1 ? Math.pow(1 + ret, 1 / anos) - 1 : null;
-  const a = fatorCdi(d[i0]), b = fatorCdi(d[d.length - 1]);
-  const cAnn = a && b ? Math.pow(b / a, 1 / anos) - 1 : null;
+  for (let i = i0 + 1; i <= i1; i++) { const r = q[i] / q[i - 1] - 1; s += r; s2 += r * r; }
+  const med = s / k, vol = k > 2 ? Math.sqrt(Math.max(s2 / k - med * med, 0) * k / (k - 1)) * Math.sqrt(252) : null;
+  const a = fatorCdi(d[i0]), b = fatorCdi(d[i1]), cdi = a && b ? b / a - 1 : null;
+  const anos = k / 252, ann = ret > -1 ? Math.pow(1 + ret, 1 / anos) - 1 : null, cAnn = cdi != null ? Math.pow(1 + cdi, 1 / anos) - 1 : null;
   const sharpe = ann != null && cAnn != null && vol > 1e-9 ? (ann - cAnn) / vol : null;
   const r4 = (x) => (x == null || !isFinite(x) ? null : Math.round(x * 1e4) / 1e4);
-  return { ret: r4(ret), vol: r4(vol), sharpe: sharpe == null || !isFinite(sharpe) ? null : Math.round(sharpe * 100) / 100 };
+  return { r: r4(ret), c: cdi > 1e-6 ? r4(ret / cdi) : null, v: r4(vol), s: sharpe == null || !isFinite(sharpe) ? null : Math.round(sharpe * 100) / 100 };
 }
 
 // ------------------------------------------------------------------ principal
@@ -965,7 +976,8 @@ async function main() {
     f.p = pai.p.slice(0, n).concat(f.p);
     f.n = pai.n.slice(0, n).concat(f.n);
     f.encadeado = iso(pai.d[0]);
-    if (pai.fm) { const k0 = mesDe(primeiro); f.fm = f.fm || new Map(); for (const [k, a] of pai.fm) if (k < k0) f.fm.set(k, a); }
+    f.iProprio = n; f.fmProprio = f.fm || new Map(); // para agregados por gestora: só a parte do próprio fundo, sem o histórico emendado
+    if (pai.fm) { const k0 = mesDe(primeiro); f.fm = new Map(f.fmProprio); for (const [k, a] of pai.fm) if (k < k0) f.fm.set(k, a); }
   }
 
   // Índices (com reserva no site já publicado)
@@ -1011,6 +1023,26 @@ async function main() {
 
   let refDia = 0;
   for (const f of fundos.values()) if (f.ult > refDia && f.d.length > 5) refDia = f.ult;
+
+  const G_K1 = mesDe(refDia), G_K0 = G_K1 - 36, G_N = 37;
+  const grupos = { gestor: new Map(), admin: new Map() };
+  function somaGrupos(info, f) {
+    const fm = f.fmProprio || f.fm, i0 = f.iProprio || 0;
+    const pl = new Array(G_N).fill(null);
+    for (let i = i0; i < f.d.length; i++) { const k = mesDe(f.d[i]) - G_K0; if (k >= 0 && k < G_N && isFinite(f.p[i])) pl[k] = f.p[i]; }
+    for (const campo of ["gestor", "admin"]) {
+      const nome = info[campo];
+      if (!nome) continue;
+      let g = grupos[campo].get(nome);
+      if (!g) { g = { c: new Array(G_N).fill(0), r: new Array(G_N).fill(0), pl: new Array(G_N).fill(0) }; grupos[campo].set(nome, g); }
+      for (let k = 0; k < G_N; k++) {
+        const a = fm && fm.get(G_K0 + k);
+        if (a) { g.c[k] += a[0]; g.r[k] += a[1]; }
+        if (pl[k] != null) g.pl[k] += pl[k];
+      }
+    }
+  }
+  const grupoSaida = (m) => Object.fromEntries([...m].map(([nome, g]) => [nome, { c: g.c.map((x) => Math.round(x / 1000)), r: g.r.map((x) => Math.round(x / 1000)), pl: g.pl.map((x) => Math.round(x / 1000)) }]));
 
   fs.rmSync(SAIDA, { recursive: true, force: true });
   fs.mkdirSync(path.join(SAIDA, "f"), { recursive: true });
@@ -1078,13 +1110,17 @@ async function main() {
   for (const [id, f] of fundos) {
     if (f.d.length < 2) continue;
     const info = montarInfo(id, f.cnpj, f.sub, f);
-    const m = metricas12(f, fatorCdi, refDia);
+    const ms = JANELAS_RK.map(([, meses]) => metricasJanela(f, fatorCdi, refDia, meses));
     delete info._mensal;
     const cap12 = captacao12(f, refDia);
+    // "Para investidor": exclui exclusivos, masters e fundos de um cotista só (espelhos e veículos internos)
+    const inv = !info.estruturado && !(info.univ & 4) && !/\bMASTER\b/i.test(info.nome || "") && (info.cotistas == null || info.cotistas > 1) ? 1 : 0;
+    if (inv && info.ativo) somaGrupos(info, f);
     escrever(id, { ...info, cap12, serie: serieLog(f.d, f.q), semanal: serieSemanal(f.d, f.p, f.n), fluxo: serieFluxo(f) });
     pontos += f.d.length;
-    lista.push([id, info.nome, info.classe, info.situacao, info.ativo, info.serie, m?.ret ?? null, m?.vol ?? null, m?.sharpe ?? null,
-      info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima, cap12]);
+    lista.push([id, info.nome, info.classe, info.situacao, info.ativo, info.serie,
+      info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima, cap12, inv,
+      ...ms.flatMap((m) => [m?.r ?? null, m?.c ?? null, m?.v ?? null, m?.s ?? null])]);
   }
   // 2) Fundos e classes só com cadastro (estruturados, pré-operacionais, cancelados sem informe)
   const cnpjsComSerie = new Set([...fundos.values()].filter((f) => f.d.length >= 2).map((f) => f.cnpj));
@@ -1096,13 +1132,19 @@ async function main() {
     escrever(cnpj, _mensal ? { ...resto, mensal: _mensal } : resto);
     soCadastro++;
     if (_mensal) comMensal++;
-    lista.push([cnpj, info.nome, info.classe, info.situacao, info.ativo, info.serie, info.ret12_mensal, null, null,
-      info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima, null]);
+    lista.push([cnpj, info.nome, info.classe, info.situacao, info.ativo, info.serie,
+      info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima, null, 0,
+      ...JANELAS_RK.flatMap(([k]) => [k === "12" ? info.ret12_mensal : null, null, null, null])]);
   }
 
   // Ativos primeiro, depois por PL
-  lista.sort((a, b) => b[4] - a[4] || (b[10] || 0) - (a[10] || 0));
-  const campos = ["id", "nome", "classe", "situacao", "ativo", "serie", "ret12", "vol12", "sharpe12", "taxa_adm", "pl", "gestor", "admin", "inicio", "univ", "cotistas", "tipo", "ultima", "cap12"];
+  const campos = ["id", "nome", "classe", "situacao", "ativo", "serie", "taxa_adm", "pl", "gestor", "admin", "inicio", "univ", "cotistas", "tipo", "ultima", "cap12", "inv",
+    ...JANELAS_RK.flatMap(([k]) => ["r" + k, "c" + k, "v" + k, "s" + k])];
+  const iPl = campos.indexOf("pl");
+  lista.sort((a, b) => b[4] - a[4] || (b[iPl] || 0) - (a[iPl] || 0));
+  // Captação e PL por gestora e por administradora (fundos para investidor, ativos), últimos 37 meses, em R$ mil
+  const gz2 = gzTexto(JSON.stringify({ m0: mesIso(G_K0), ref: iso(refDia), gestor: grupoSaida(grupos.gestor), admin: grupoSaida(grupos.admin) }));
+  fs.writeFileSync(path.join(SAIDA, "grupos.txt"), gz2);
   const idx = gzTexto(JSON.stringify({ campos, ref: iso(refDia), fundos: lista }));
   fs.writeFileSync(path.join(SAIDA, "fundos.txt"), idx);
   fs.writeFileSync(path.join(SAIDA, "indices.txt"), gzTexto(JSON.stringify(indices)));
