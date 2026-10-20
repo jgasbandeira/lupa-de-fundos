@@ -62,7 +62,6 @@ jobs:
           INICIO: "2000"
           NODE_OPTIONS: --max-old-space-size=13000
           SITE_URL: https://comparadorfundos.com.br
-          SITE_SENHA: ${{ secrets.SITE_SENHA }}
         run: |
           set -o pipefail
           node scripts/coleta.mjs 2>&1 | tee coleta.log

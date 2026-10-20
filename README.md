@@ -26,13 +26,9 @@ Tudo roda no GitHub, sem servidor e sem nada no seu computador.
 
 Os arquivos já baixados da CVM ficam em cache, então só os meses recentes são baixados de novo.
 
-## Senha de acesso
+## Senha de acesso (desligada)
 
-O site pede uma senha quando existe o segredo `SITE_SENHA` no repositório (**Settings → Secrets and variables → Actions → New repository secret**). Com ele, todos os arquivos de dados são publicados criptografados (AES-256-GCM, chave derivada da senha com PBKDF2), então sem a senha não dá para ver nem os dados nem as telas.
-
-- Para trocar a senha, edite o segredo e rode a atualização. Quem tinha marcado "Lembrar neste computador" vai precisar digitar a nova.
-- Para tirar a senha, apague o segredo e rode a atualização.
-- O botão **Sair** no topo esquece a senha naquele navegador.
+O site pode pedir senha: os dados saem criptografados (AES-256-GCM, chave derivada da senha com PBKDF2) quando o workflow passa a variável `SITE_SENHA` para `scripts/coleta.mjs`. Hoje ela não é passada, e o site abre sem senha. Para religar, crie o segredo `SITE_SENHA` (Settings → Secrets and variables → Actions) e acrescente `SITE_SENHA: ${{ secrets.SITE_SENHA }}` no passo "Coletar dados" de `.github/workflows/atualizar.yml`.
 
 ## Rodar a atualização na hora
 
