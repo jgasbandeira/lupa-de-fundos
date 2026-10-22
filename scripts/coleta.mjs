@@ -621,6 +621,155 @@ function serieMensal(cnpj) {
   return { serie: out, ret12, pl, cot, dataPl, ultimo: meses[ult] };
 }
 
+// ------------------------------------------------------------------ listados (B3)
+// Cotações de fechamento da B3 (COTAHIST) para FIIs, Fiagro, FI-Infra e ETFs. Anos fechados ficam em cache já extraídos.
+const norm = (t) => (t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+const B3_HIST = (process.env.B3_HIST_BASE || "https://bvmf.bmfbovespa.com.br/InstDados/SerHist").replace(/\/$/, "");
+const B3_ARQ = (process.env.B3_ARQ_BASE || "https://arquivos.b3.com.br").replace(/\/$/, "");
+const LISTADOS_INICIO = +(process.env.LISTADOS_INICIO || 2016);
+async function cotahistAno(ano) {
+  const anoAtual = hoje.getUTCFullYear();
+  const json_ = path.join(CACHE, "hist", `cotahist_${ano}.json`);
+  if (ano < anoAtual && fs.existsSync(json_)) return JSON.parse(fs.readFileSync(json_, "utf8"));
+  const zip = path.join(CACHE, "tmp", `COTAHIST_A${ano}.ZIP`);
+  const st = await baixar(`${B3_HIST}/COTAHIST_A${ano}.ZIP`, zip, { forcar: true });
+  if (st === "404") return {};
+  const out = {};
+  const membro = (await nomesNoZip(zip))[0];
+  for await (const l of linhasCsv(zip, membro)) {
+    if (l.length < 245 || l[0] !== "0" || l[1] !== "1") continue;
+    const bdi = l.slice(10, 12);
+    if ((bdi !== "12" && bdi !== "14") || l.slice(24, 27) !== "010" || !l.slice(39, 49).startsWith("CI")) continue;
+    const tk = l.slice(12, 24).trim();
+    if (!/^[A-Z0-9]{4}11$/.test(tk)) continue;
+    const fat = +l.slice(210, 217) || 1;
+    const c = +l.slice(108, 121) / 100 / fat, v = +l.slice(170, 188) / 100, n = +l.slice(147, 152);
+    if (!(c > 0)) continue;
+    const d = dia(`${l.slice(2, 6)}-${l.slice(6, 8)}-${l.slice(8, 10)}`);
+    let o = out[tk];
+    if (!o) o = out[tk] = { isin: l.slice(230, 242), nome: l.slice(27, 39).trim(), bdi, d: [], c: [], v: [], n: [] };
+    o.d.push(d); o.c.push(+c.toPrecision(8)); o.v.push(Math.round(v)); o.n.push(n);
+    o.isin = l.slice(230, 242); o.nome = l.slice(27, 39).trim(); o.bdi = bdi;
+  }
+  fs.rmSync(zip, { force: true });
+  if (ano < anoAtual) { fs.mkdirSync(path.dirname(json_), { recursive: true }); fs.writeFileSync(json_, JSON.stringify(out)); }
+  return out;
+}
+// Cadastro de instrumentos da B3: categoria (ETF ou fundo) e razão social de cada ticker.
+async function instrumentosB3() {
+  for (let k = 0; k < 8; k++) {
+    const dt = iso(DIA_HOJE - k);
+    try {
+      const j = await json(`${B3_ARQ}/api/download/requestname?fileName=InstrumentsConsolidatedFile&date=${dt}&recaptchaToken=`, 1);
+      if (!j.redirectUrl) continue;
+      const r = await fetch(`${B3_ARQ}${j.redirectUrl.replace(/^~/, "/api")}`, { headers: { "User-Agent": UA_NAVEGADOR } });
+      if (!r.ok) continue;
+      const txt = Buffer.from(await r.arrayBuffer()).toString("latin1");
+      const L = txt.split(/\r?\n/), h = (L[1] || "").split(";");
+      const iT = h.indexOf("TckrSymb"), iC = h.indexOf("SctyCtgyNm"), iS = h.indexOf("SgmtNm"), iN = h.indexOf("CrpnNm");
+      if (iT < 0) continue;
+      const m = new Map();
+      for (const l of L.slice(2)) { const c = l.split(";"); if (c[iS] === "CASH" && /11$/.test(c[iT] || "")) m.set(c[iT], { cat: c[iC], nome: (c[iN] || "").trim() }); }
+      if (m.size > 100) { log(`instrumentos B3 (${dt}): ${m.size} tickers`); return m; }
+    } catch (e) { /* tenta o dia anterior */ }
+  }
+  aviso("cadastro de instrumentos da B3 indisponível; ETFs identificados pelo nome");
+  return new Map();
+}
+// Ajusta desdobramentos e grupamentos: salto diário perto de um múltiplo inteiro (2x a 100x) vira fator de ajuste no passado.
+function ajustaEventos(c) {
+  const a = c.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const r = a[i - 1] / a[i];
+    for (const [x, inv] of [[r, false], [1 / r, true]]) {
+      if (x < 1.9) continue;
+      const k = Math.round(x);
+      if (k >= 2 && k <= 100 && Math.abs(x / k - 1) < 0.04) { const f = inv ? k : 1 / k; for (let j = 0; j < i; j++) a[j] *= f; break; }
+    }
+  }
+  return a;
+}
+async function listados(refDia, saida) {
+  const anoAtual = hoje.getUTCFullYear();
+  const tk = new Map();
+  for (let a = LISTADOS_INICIO; a <= anoAtual; a++) {
+    let ano;
+    try { ano = await cotahistAno(a); } catch (e) { aviso(`COTAHIST ${a}: ${e.message}`); continue; }
+    for (const [t, o] of Object.entries(ano)) {
+      let x = tk.get(t);
+      if (!x) { x = { d: [], c: [], v: [], n: [] }; tk.set(t, x); }
+      x.isin = o.isin; x.nome = o.nome; x.bdi = o.bdi;
+      x.d.push(...o.d); x.c.push(...o.c); x.v.push(...o.v); x.n.push(...o.n);
+    }
+  }
+  if (!tk.size) throw new Error("COTAHIST sem dados");
+  const inst = await instrumentosB3();
+  const porIsin = new Map();
+  for (const [cnpj, e] of estrInfo) if (e.isin) porIsin.set(e.isin.trim().toUpperCase(), cnpj);
+  const ultimoPregao = Math.max(...[...tk.values()].map((x) => x.d[x.d.length - 1]));
+  const lista = [];
+  fs.mkdirSync(path.join(saida, "l"), { recursive: true });
+  const r4 = (x) => (x == null || !isFinite(x) ? null : Math.round(x * 1e4) / 1e4);
+  for (const [t, x] of tk) {
+    const n = x.d.length;
+    if (!n || x.d[n - 1] < ultimoPregao - 30) continue; // só papéis negociados no último mês
+    const ins = inst.get(t) || {};
+    const nomeLongo = ins.nome || x.nome;
+    const N = norm(nomeLongo);
+    let tipo;
+    if (/^ETF/.test(ins.cat || "")) tipo = "ETF";
+    else if (/FIAGRO/.test(N) || /^FIAGRO/.test(norm(x.nome))) tipo = "Fiagro";
+    else if (x.bdi === "12") tipo = "FII";
+    else if (/INFRA|\bIE\b|INCENTIV|DEBENT/.test(N)) tipo = "FI-Infra";
+    else if (!ins.cat && /ISHARE|IT NOW|ETF|INDICE|INDEX|TREND|HASHDEX/.test(N)) tipo = "ETF";
+    else continue;
+    const c = ajustaEventos(x.c);
+    const cnpj = porIsin.get((x.isin || "").trim().toUpperCase()) || null;
+    const ult = c[n - 1], dUlt = x.d[n - 1];
+    const em = (dias) => { let lo = 0, hi = n - 1; const alvo = dUlt - dias; if (x.d[0] > alvo + 5) return null; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (x.d[m] <= alvo) lo = m; else hi = m - 1; } return c[lo]; };
+    const ini = (d) => { let lo = 0, hi = n - 1; if (x.d[0] > d + 5) return null; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (x.d[m] <= d) lo = m; else hi = m - 1; } return c[lo]; };
+    const ret = (base) => (base ? ult / base - 1 : null);
+    const fimAno = dia(`${new Date(dUlt * DIA_MS).getUTCFullYear() - 1}-12-31`);
+    const media = (arr, k) => { const s = arr.slice(-k); return s.length ? s.reduce((a, b) => a + b, 0) / s.length : null; };
+    // volatilidade 12M dos retornos diários
+    let vol = null;
+    { const i0 = Math.max(1, n - 252); const rs = []; for (let i = i0; i < n; i++) rs.push(c[i] / c[i - 1] - 1); if (rs.length > 60) { const m = rs.reduce((a, b) => a + b, 0) / rs.length; vol = Math.sqrt(rs.reduce((a, b) => a + (b - m) ** 2, 0) / (rs.length - 1)) * Math.sqrt(252); } }
+    const info = { t, nome: nomeLongo, tipo, cnpj, isin: x.isin, preco: +ult.toPrecision(8), data: iso(dUlt), dia: r4(n > 1 ? ult / c[n - 2] - 1 : null),
+      r1m: r4(ret(em(30))), rano: r4(ret(ini(fimAno))), r12: r4(ret(em(365))), r24: r4(ret(em(730))), r36: r4(ret(em(1095))), vol12: r4(vol),
+      liq21: Math.round(media(x.v, 21) || 0), liq252: Math.round(media(x.v, 252) || 0), neg21: Math.round(media(x.n, 21) || 0) };
+    // Dados mensais da CVM (FII e Fiagro): VP por cota, DY mensal (sobre o VP), PL, cotistas, segmento
+    let mensalOut = null;
+    if (cnpj) {
+      const sm = serieMensal(cnpj), ei = estrInfo.get(cnpj) || {}, cd = cad.get(cnpj) || {};
+      info.segmento = ei.segmento || null; info.gestor = cd.gestor || ei.gestor || null; info.admin = cd.admin || ei.admin || null;
+      if (sm) {
+        const S = sm.serie, k = S.m.length;
+        info.pl = sm.pl; info.cotistas = sm.cot;
+        let vpc = null, mvpc = null;
+        for (let i = k - 1; i >= 0 && i >= k - 4; i--) if (S.vpc && S.vpc[i] != null) { vpc = S.vpc[i]; mvpc = S.m[i]; break; }
+        info.vpc = vpc; info.mes_vpc = mvpc; info.pvp = vpc ? r4(ult / vpc) : null;
+        if (S.dy && S.vpc) {
+          // rendimento distribuído por cota no mês ≈ DY do mês (sobre o VP) × VP da cota
+          const dist = S.m.map((m, i) => (S.dy[i] != null && S.vpc[i] != null ? S.dy[i] * S.vpc[i] : null));
+          const ult12 = dist.slice(-12).filter((v) => v != null);
+          if (ult12.length >= 10) { const soma = ult12.reduce((a, b) => a + b, 0) * 12 / ult12.length; info.dy12 = r4(soma / ult); const p12 = em(365); info.rt12 = p12 ? r4((ult + soma) / p12 - 1) : null; }
+          const ud = dist[dist.length - 1]; info.ult_rend = ud != null ? +ud.toFixed(4) : null; info.mes_rend = S.m[k - 1];
+          mensalOut = { m: S.m.slice(-60), dist: dist.slice(-60).map((v) => (v == null ? null : +v.toFixed(5))), vpc: S.vpc.slice(-60), dy: S.dy.slice(-60) };
+        }
+      }
+    }
+    // Série diária: fechamento ajustado (log, como as cotas) e volume financeiro em R$ mil
+    const sl = serieLog(x.d, c);
+    const v0 = x.v.map((v) => Math.round(v / 1000));
+    fs.writeFileSync(path.join(saida, "l", `${t}.txt`), gzTexto(JSON.stringify({ ...info, serie: sl, vol: v0, mensal: mensalOut })));
+    lista.push(info);
+  }
+  lista.sort((a, b) => (b.liq21 || 0) - (a.liq21 || 0));
+  fs.writeFileSync(path.join(saida, "listados.txt"), gzTexto(JSON.stringify({ ref: iso(ultimoPregao), lista })));
+  const cont = {}; lista.forEach((x) => (cont[x.tipo] = (cont[x.tipo] || 0) + 1));
+  log(`listados: ${lista.length} papéis (${Object.entries(cont).map(([k, v]) => `${v} ${k}`).join(", ")}), ${lista.filter((x) => x.cnpj).length} ligados ao CNPJ na CVM`);
+}
+
 // ------------------------------------------------------------------ carteira (CDA)
 // Últimas competências da composição da carteira de cada fundo. Grava site/dados/c/<cnpj>.txt
 const CDA_MESES = +(process.env.CDA_MESES || 12), CDA_MAX_POS = 80;
@@ -1219,6 +1368,7 @@ async function main() {
     inicio: iso([...fundos.values()].reduce((m, f) => (f.d.length ? Math.min(m, f.d[0]) : m), Infinity)), cotas: pontos,
     tamanho_mb: Math.round((bytes + idx.length) / 1e6), fontes: { cdi: indices.cdi?.fonte || null, ibov: indices.ibov?.fonte || null, ...Object.fromEntries(Object.entries(indices.extra || {}).map(([k, x]) => [k, x.fonte])) }, avisos,
   };
+  try { await listados(refDia, SAIDA); } catch (e) { aviso(`listados: ${e.message}`); }
   fundos.clear();
   mensal.clear();
   let mbCarteira = 0;

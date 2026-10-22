@@ -7,6 +7,7 @@ Terminal de fundos de investimento brasileiros com dados públicos da CVM:
 - **F3 Compara**: até 8 fundos lado a lado, janelas de 1M a MAX ou datas livres, mais de 30 indicadores (Sharpe, Sortino, VaR, beta, alfa de Jensen…), excesso, tracking error e information ratio contra os benchmarks escolhidos, matriz de correlação e exportação em CSV.
 - **F4 Gestores e administradores**: PL, market share e captação líquida (último mês fechado e 12 meses) somando os fundos líquidos para investidor; ao escolher um, captação mês a mês e PL dos últimos 36 meses (com CSV); ao escolher um, a lista dos fundos dele.
 - **F5 Estruturados**: FII, FIDC, FIP, Fiagro e afins, com PL, cotistas e rentabilidade mensal (informes mensais da CVM).
+- **F6 Listados**: FIIs, Fiagro, FI-Infra e ETFs negociados na B3, com preço de fechamento, variação no dia, 1M, ano e 12M, DY 12M, P/VP, liquidez, PL e cotistas, filtros por tipo, segmento e liquidez e exportação em CSV. Cada papel tem ficha própria: variação do preço contra benchmarks, preço × valor patrimonial da cota, volume por mês e rendimentos mês a mês.
 - **Ficha do fundo**: desempenho contra até 6 benchmarks à escolha (padrão: CDI e o indicador de desempenho do cadastro), tabela fundo × benchmark, PL e cotistas, captação e resgates mês a mês (com exportação em CSV), retorno mês a mês, carteira (últimas 12 competências da CDA), cadastro completo, link para o regulamento e outros documentos entregues à CVM (anexo, apêndice, fatos relevantes, relatório gerencial, assembleias) e exportação do histórico de cotas em CSV.
 
 Atalhos: F1 a F5 trocam de tela. Tema claro e escuro.
@@ -21,6 +22,7 @@ Tudo roda no GitHub, sem servidor e sem nada no seu computador.
 2. O script baixa os dados públicos:
    - CVM: informe diário (cota, PL, cotistas, captação e resgates do dia), documentos eventuais (links para regulamento e outros), cadastro de fundos, classes e subclasses, e extrato de informações (taxas, aplicação mínima, prazos)
    - CDI diário: Banco Central (SGS 12) ou, quando o BC bloqueia, Selic over do Ipeadata calibrada pelo CDI mensal oficial
+   - B3: cotações de fechamento (COTAHIST, desde 2016) e cadastro de instrumentos (para identificar ETFs)
    - Benchmarks: Ibovespa, Small Caps, IDIV e IFIX (B3); IMA-B, IMA-B 5, IMA-B 5+, IRF-M, IMA-S, IMA-Geral e IHFA (ANBIMA, histórico oficial); IPCA, IGP-M e dólar PTAX (Ipeadata); S&P 500 em reais (Yahoo Finance × PTAX). IPCA + X% é montado no navegador com a taxa que a pessoa digitar.
 3. Gera arquivos estáticos em `site/dados/` e publica o site no GitHub Pages.
 
