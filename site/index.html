@@ -631,7 +631,7 @@ async function telaPainel(r){
   const cn=r.q.get("cesta"),cf=(r.q.get("f")||"").split(",").filter(Boolean);
   const compartilhada=cn&&cf.length?{nome:cn,fundos:cf}:null;
   app.innerHTML=`
-  ${PEERS.grupos.length?`<section class="painel"><div class="cab" id="pg-cab" role="button" tabindex="0" aria-expanded="${ls("lupa-pg-min")!=="1"}" style="cursor:pointer" title="Clique para recolher ou expandir"><span><span id="pg-seta">${ls("lupa-pg-min")==="1"?"▸":"▾"}</span> Peer groups da casa</span><span class="sub">fixos, iguais para todos · ${h(PEERS.fonte||"")}</span></div>
+  ${PEERS.grupos.length?`<section class="painel"><div class="cab" id="pg-cab" role="button" tabindex="0" aria-expanded="${ls("lupa-pg-min")!=="1"}" style="cursor:pointer" title="Clique para recolher ou expandir"><span><span id="pg-seta">${ls("lupa-pg-min")==="1"?"▸":"▾"}</span> Peer groups da casa</span></div>
     <div id="pg-corpo"${ls("lupa-pg-min")==="1"?" hidden":""}><div class="corpo"><div class="seg" id="pg-tabs">${PEERS.grupos.map(g=>'<button type="button" data-g="'+h(g.id)+'">'+h(g.nome)+'</button>').join("")}</div></div><div id="pg-box"></div></div></section>`:""}
   <section class="painel"><div class="cab">Meu painel<span class="linha"><span class="sub">salvo neste navegador</span><button type="button" class="btn" id="pn-exp">Exportar painel</button><label class="btn" style="cursor:pointer">Importar painel<input type="file" id="pn-imp" accept=".json,application/json" hidden></label></span></div>
     <div class="corpo"><div class="fraco" style="font-size:11px">Favoritos e peer groups ficam guardados só neste navegador, e ninguém mais vê. Para levar para outro aparelho, use o link de cada peer group ou exporte o painel e importe do outro lado.</div></div></section>
