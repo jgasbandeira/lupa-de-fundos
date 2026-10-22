@@ -627,16 +627,38 @@ const norm = (t) => (t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").t
 const B3_HIST = (process.env.B3_HIST_BASE || "https://bvmf.bmfbovespa.com.br/InstDados/SerHist").replace(/\/$/, "");
 const B3_ARQ = (process.env.B3_ARQ_BASE || "https://arquivos.b3.com.br").replace(/\/$/, "");
 const LISTADOS_INICIO = +(process.env.LISTADOS_INICIO || 2016);
+// Lê o primeiro arquivo de um zip direto com o zlib do Node (sem o unzip do sistema), linha a linha.
+async function* linhasZip(zip) {
+  const fd = fs.openSync(zip, "r");
+  try {
+    const tam = fs.fstatSync(fd).size, fimBuf = Buffer.alloc(Math.min(tam, 66000));
+    fs.readSync(fd, fimBuf, 0, fimBuf.length, tam - fimBuf.length);
+    let e = fimBuf.length - 22;
+    while (e >= 0 && fimBuf.readUInt32LE(e) !== 0x06054b50) e--;
+    if (e < 0) throw new Error("zip sem diretório central");
+    let cdOff = fimBuf.readUInt32LE(e + 16), cdTam = fimBuf.readUInt32LE(e + 12);
+    const cd = Buffer.alloc(Math.min(cdTam, 4096)); fs.readSync(fd, cd, 0, cd.length, cdOff);
+    const metodo = cd.readUInt16LE(10); let comp = cd.readUInt32LE(20); const loc = cd.readUInt32LE(42);
+    const lh = Buffer.alloc(30); fs.readSync(fd, lh, 0, 30, loc);
+    const ini = loc + 30 + lh.readUInt16LE(26) + lh.readUInt16LE(28);
+    let stream = fs.createReadStream(zip, { start: ini, end: ini + comp - 1 });
+    if (metodo === 8) stream = stream.pipe(zlib.createInflateRaw());
+    stream.setEncoding("latin1");
+    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    for await (const l of rl) yield l;
+  } finally { fs.closeSync(fd); }
+}
 async function cotahistAno(ano) {
   const anoAtual = hoje.getUTCFullYear();
-  const json_ = path.join(CACHE, "hist", `cotahist_${ano}.json`);
+  const json_ = path.join(CACHE, "hist", `cotahist2_${ano}.json`);
   if (ano < anoAtual && fs.existsSync(json_)) return JSON.parse(fs.readFileSync(json_, "utf8"));
   const zip = path.join(CACHE, "tmp", `COTAHIST_A${ano}.ZIP`);
   const st = await baixar(`${B3_HIST}/COTAHIST_A${ano}.ZIP`, zip, { forcar: true });
   if (st === "404") return {};
   const out = {};
-  const membro = (await nomesNoZip(zip))[0];
-  for await (const l of linhasCsv(zip, membro)) {
+  let nl = 0;
+  for await (const l of linhasZip(zip)) {
+    nl++;
     if (l.length < 245 || l[0] !== "0" || l[1] !== "1") continue;
     const bdi = l.slice(10, 12);
     if ((bdi !== "12" && bdi !== "14") || l.slice(24, 27) !== "010" || !l.slice(39, 49).startsWith("CI")) continue;
@@ -652,6 +674,7 @@ async function cotahistAno(ano) {
     o.isin = l.slice(230, 242); o.nome = l.slice(27, 39).trim(); o.bdi = bdi;
   }
   fs.rmSync(zip, { force: true });
+  log(`COTAHIST ${ano}: ${nl.toLocaleString("pt-BR")} linhas, ${Object.keys(out).length} fundos listados`);
   if (ano < anoAtual) { fs.mkdirSync(path.dirname(json_), { recursive: true }); fs.writeFileSync(json_, JSON.stringify(out)); }
   return out;
 }
