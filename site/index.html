@@ -929,7 +929,7 @@ async function telaFundo(r){
   const link=o=>{const p=new URLSearchParams({aba,j:jan});if(de)p.set("de",de);if(ate)p.set("ate",ate);if(bq!=null)p.set("b",bq);for(const k in o){if(o[k]==="")p.delete(k);else p.set(k,o[k]);}return"#/fundo/"+encodeURIComponent(id)+"?"+p.toString();};
   const k=(rot,val)=>'<div><div class="k">'+rot+'</div><div class="v">'+val+'</div></div>';
   app.innerHTML=`
-  <section class="painel"><div class="cab"><span style="color:var(--texto)">${estrela(f.id)}${h(f.nome)}</span><span class="linha">${seletorCesta("fd-cst")}<a class="btn" href="#" id="fd-cmp">Comparar ▸</a></span></div><div class="corpo">
+  <section class="painel"><div class="cab"><span style="color:var(--texto)">${estrela(f.id)}${h(f.nome)}</span><span class="linha">${(()=>{const rg=(f.documentos||[]).find(x=>x.t==="Regulamento");return rg?'<a class="btn" href="'+h(rg.u)+'" target="_blank" rel="noopener" title="Regulamento entregue à CVM em '+h(dt(rg.d))+'">Regulamento ↗</a>':"";})()}${seletorCesta("fd-cst")}<a class="btn" href="#" id="fd-cmp">Comparar ▸</a></span></div><div class="corpo">
     <div class="kv">
       ${k("CNPJ",cnpjFmt(f.cnpj))}${k("Classe",h(f.classe||f.tipo||"—"))}${k("Situação",h(f.ativo?"ativo":(f.situacao||"encerrado").toLowerCase()))}
       ${k("Início do fundo",dt(f.inicio))}${k("Série na base",f.primeira?dt(f.primeira)+" → "+dt(f.ultima):"—")}${k("Pregões",f.pregoes?nf0.format(f.pregoes):"—")}
@@ -956,7 +956,8 @@ async function telaFundo(r){
       ${f.adaptacao175||f.regime175?'<tr><td class="l">RCVM 175</td><td class="l">'+h(f.regime175||"—")+'</td><td>'+dt(f.adaptacao175)+'</td></tr>':""}
       ${f.encadeado?'<tr><td class="l">Série emendada da classe</td><td class="l">histórico da classe antes da subclasse</td><td>'+dt(f.encadeado)+'</td></tr>':""}
       ${!f.registro555&&!f.regime555&&!f.adaptacao175&&!f.regime175&&!f.encadeado?'<tr><td class="l fraco" colspan="3">Sem registro de regime no cadastro da CVM.</td></tr>':""}
-    </tbody></table></div></div></section>`;
+    </tbody></table></div></div></section>
+    <section class="painel"><div class="cab">Documentos na CVM<span class="sub">mais recente de cada tipo · abre no site da CVM</span></div>${f.documentos&&f.documentos.length?'<div class="tw"><table><thead><tr><th class="l">Documento</th><th>Entregue em</th><th class="l">Arquivo</th></tr></thead><tbody>'+f.documentos.map(x=>'<tr><td class="l">'+h(x.t)+'</td><td>'+dt(x.d)+'</td><td class="l"><a href="'+h(x.u)+'" target="_blank" rel="noopener" style="color:var(--ciano)">abrir ↗</a></td></tr>').join("")+'</tbody></table></div>':'<div class="corpo"><div class="fraco">A CVM não tem documentos eventuais publicados para este fundo nos dados abertos.</div></div>'}</section>`;
     return;
   }
   if(aba==="carteira"){await abaCarteira(c,f,q.get("comp")||"",link);return;}

@@ -421,6 +421,59 @@ function pontoMensal(cnpj, ym) {
 }
 const nOk = (v) => { const x = num(v); return isFinite(x) ? x : null; };
 
+// Documentos do fundo: os da classe, os da subclasse e os do fundo guarda-chuva (onde costuma ficar o regulamento após a RCVM 175).
+function juntaDocs(cnpj, sub, fundoCnpj) {
+  const l = [...(docs.get(cnpj) || []), ...(sub ? docs.get(`${cnpj}.${sub}`) || [] : []), ...(fundoCnpj && fundoCnpj !== cnpj ? docs.get(fundoCnpj) || [] : [])];
+  if (!l.length) return null;
+  const vistos = new Set();
+  return l.filter((x) => !vistos.has(x.u) && vistos.add(x.u)).sort((a, b) => (b.d || "").localeCompare(a.d || ""));
+}
+// Documentos eventuais (regulamento, anexo, apêndice, fato relevante, relatório gerencial, assembleias...) com o link no site da CVM.
+const TIPOS_DOC = [
+  [/^REGUL FDO$/i, "Regulamento"], [/^SGF ANEXO$/i, "Anexo da classe"], [/^SGF APENDICE$/i, "Apêndice da subclasse"],
+  [/^FATO RELEV$/i, "Fato relevante"], [/^RELAT GERENCIAL$/i, "Relatório gerencial"], [/^(DEMONST CONTAB|DF)$/i, "Demonstrações financeiras"],
+  [/^(AGO|AGE|AGO\/AGE|EDITAL AGO|AG[OE] PROPOST ADM|AGO\/AGE PROPADM|PROPOSTA ADMINI)/i, "Assembleia"],
+  [/^(PROSPEC\.DISTRIB|MIN PROSP DEF)$/i, "Prospecto"],
+];
+const docs = new Map(); // "cnpj" ou "cnpj.sub" -> [{t, d, u}]
+async function documentos() {
+  const anoAtual = hoje.getUTCFullYear();
+  let n = 0;
+  for (let a = 2005; a <= anoAtual; a++) {
+    const dest = path.join(CACHE, a >= anoAtual - 1 ? "estr" : "hist", `eventual_fi_${a}.csv`);
+    try {
+      const st = await baixar(`${CVM}/DOC/EVENTUAL/DADOS/eventual_fi_${a}.csv`, dest, { forcar: a >= anoAtual - 1 });
+      if (st === "404") continue;
+    } catch (e) { aviso(`documentos ${a}: ${e.message}`); continue; }
+    let h = null, iC, iS, fim;
+    for await (const r of registros(dest)) {
+      if (r.cab) { h = r.cab; iC = h.findIndex((x) => /^CNPJ_FUNDO/.test(x)); iS = h.indexOf("ID_SUBCLASSE"); fim = (nome) => h.length - h.indexOf(nome); continue; }
+      const c = r.c;
+      if (c.length < h.length) continue;
+      const col = (nome) => c[c.length - fim(nome)]; // conta do fim: o nome do fundo pode ter ";" e deslocar as colunas do meio
+      const tipo = (col("TP_DOC") || "").trim(), u = (col("LINK_ARQ") || "").trim();
+      const rot = TIPOS_DOC.find(([re]) => re.test(tipo));
+      if (!rot || !/^https?:\/\//.test(u)) continue;
+      const cnpj = cnpj14(c[iC]);
+      if (!cnpj) continue;
+      const sub = iS >= 0 ? (col("ID_SUBCLASSE") || "").trim() : "";
+      const k = sub ? `${cnpj}.${sub}` : cnpj, d = dataOk(col("DT_RECEB")) || dataOk(col("DT_COMPTC"));
+      let l = docs.get(k);
+      if (!l) { l = []; docs.set(k, l); }
+      l.push({ t: rot[1], d, u: u.replace(/^http:\/\/sistemas\.cvm/, "https://sistemas.cvm") });
+      n++;
+    }
+  }
+  // Mantém, por fundo, o mais recente de cada tipo e até 3 fatos relevantes e 3 assembleias.
+  for (const [k, l] of docs) {
+    l.sort((a, b) => (b.d || "").localeCompare(a.d || ""));
+    const cont = {}, out = [];
+    for (const x of l) { const lim = x.t === "Fato relevante" || x.t === "Assembleia" ? 3 : 1; if ((cont[x.t] = (cont[x.t] || 0) + 1) <= lim) out.push(x); }
+    docs.set(k, out);
+  }
+  log(`documentos eventuais: ${n.toLocaleString("pt-BR")} documentos de ${docs.size.toLocaleString("pt-BR")} fundos/classes`);
+}
+
 async function estruturados() {
   const anoAtual = hoje.getUTCFullYear(), mesAtual = hoje.getUTCMonth() + 1;
   // FII: arquivos anuais (o do ano corrente e o anterior são revisados)
@@ -959,6 +1012,7 @@ async function main() {
   await cadastro();
   await extratos();
   await estruturados();
+  try { await documentos(); } catch (e) { aviso(`documentos: ${e.message}`); }
 
   // Subclasse nova sem histórico: encadeia com a série do CNPJ da classe antes da data de criação.
   for (const [, f] of fundos) {
@@ -1097,6 +1151,7 @@ async function main() {
       auditor: c.auditor || null, custodiante: c.custodiante || null, cancelamento: c.cancelamento || null,
       adaptacao175: c.adaptacao175 || null, registro555: c.registro555 || null, regime555: c.regime555 || null, regime175: c.regime175 || null,
       fundo_cnpj: c.fundo_cnpj && c.fundo_cnpj !== cnpj ? c.fundo_cnpj : null, fundo_nome: c.fundo_cnpj && c.fundo_cnpj !== cnpj ? c.fundo_nome : null,
+      documentos: juntaDocs(cnpj, sub, c.fundo_cnpj),
       indicador: c.indicador || null, pl: pl != null ? Math.round(pl) : null, data_pl: temSerie && pl != null ? iso(f.ult) : sm?.dataPl || c.data_pl_cad || null,
       segmento: ei.segmento || null, mandato: ei.mandato || null, isin: ei.isin || null, gestao: ei.gestao || null, bolsa: ei.bolsa ?? null,
       ret12_mensal: sm?.ret12 ?? null, ultimo_mes: sm?.ultimo || null, _mensal: sm?.serie || null,
