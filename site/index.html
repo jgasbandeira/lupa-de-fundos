@@ -607,8 +607,7 @@ function painelCasa(idx,pedido){
     const ord=rows.slice().sort((a,b)=>{const x=a[st.ord],y=b[st.ord];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*st.dir;});
     const nXP=achados.filter(x=>ehXP(x.id)).length,falt=rows.length-achados.length;
     let t='<thead><tr>'+PG_COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a==="l"?"l":"")+'" data-k="'+k+'">'+l+(st.ord===k?(st.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
-    const linhaEst=(rot,fn)=>'<tr class="est"><td></td><td class="l" colspan="2">'+rot+'</td>'+PG_COLS.slice(3).map(([k])=>'<td>'+(est[k].length?fmt(k,fn(est[k])):"—")+'</td>').join("")+'</tr>';
-    t+=linhaEst("Maior",a=>a[a.length-1])+linhaEst("1º quartil",a=>q(a,0.75))+linhaEst("Mediana",a=>q(a,0.5))+linhaEst("Média",a=>a.reduce((x,y)=>x+y,0)/a.length)+linhaEst("3º quartil",a=>q(a,0.25))+linhaEst("Menor",a=>a[0]);
+    const _linhaEst=(rot,fn)=>'<tr class="est"><td></td><td class="l" colspan="2">'+rot+'</td>'+PG_COLS.slice(3).map(([k])=>'<td>'+(est[k].length?fmt(k,fn(est[k])):"—")+'</td>').join("")+'</tr>';
     for(const f of ord){
       if(!f.ok){t+='<tr><td></td><td class="nome l fraco">'+h(f.nome)+' <span class="fraco">('+cnpjFmt(f.cnpj)+' · não encontrado na base da CVM)</span></td><td colspan="'+(PG_COLS.length-2)+'"></td></tr>';continue;}
       t+='<tr class="'+(ehXP(f.id)?"xp":"")+'"><td><input type="checkbox" data-id="'+h(f.id)+'"'+(sel.has(f.id)?" checked":"")+' aria-label="Selecionar '+h(f.nome)+'"></td><td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td><td class="l fraco" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+h(f.gestor||"—")+'</td>'+
@@ -632,8 +631,8 @@ async function telaPainel(r){
   const cn=r.q.get("cesta"),cf=(r.q.get("f")||"").split(",").filter(Boolean);
   const compartilhada=cn&&cf.length?{nome:cn,fundos:cf}:null;
   app.innerHTML=`
-  ${PEERS.grupos.length?`<section class="painel"><div class="cab">Peer groups da casa<span class="sub">fixos, iguais para todos · ${h(PEERS.fonte||"")}</span></div>
-    <div class="corpo"><div class="seg" id="pg-tabs">${PEERS.grupos.map(g=>'<button type="button" data-g="'+h(g.id)+'">'+h(g.nome)+'</button>').join("")}</div></div><div id="pg-box"></div></section>`:""}
+  ${PEERS.grupos.length?`<section class="painel"><div class="cab" id="pg-cab" role="button" tabindex="0" aria-expanded="${ls("lupa-pg-min")!=="1"}" style="cursor:pointer" title="Clique para recolher ou expandir"><span><span id="pg-seta">${ls("lupa-pg-min")==="1"?"▸":"▾"}</span> Peer groups da casa</span><span class="sub">fixos, iguais para todos · ${h(PEERS.fonte||"")}</span></div>
+    <div id="pg-corpo"${ls("lupa-pg-min")==="1"?" hidden":""}><div class="corpo"><div class="seg" id="pg-tabs">${PEERS.grupos.map(g=>'<button type="button" data-g="'+h(g.id)+'">'+h(g.nome)+'</button>').join("")}</div></div><div id="pg-box"></div></div></section>`:""}
   <section class="painel"><div class="cab">Meu painel<span class="linha"><span class="sub">salvo neste navegador</span><button type="button" class="btn" id="pn-exp">Exportar painel</button><label class="btn" style="cursor:pointer">Importar painel<input type="file" id="pn-imp" accept=".json,application/json" hidden></label></span></div>
     <div class="corpo"><div class="fraco" style="font-size:11px">Favoritos e peer groups ficam guardados só neste navegador, e ninguém mais vê. Para levar para outro aparelho, use o link de cada peer group ou exporte o painel e importe do outro lado.</div></div></section>
   ${compartilhada?`<section class="painel aviso"><div class="cab">Peer group compartilhado<span class="linha"><button class="btn" id="pn-sv">Salvar no meu painel</button><button class="btn" id="pn-cmpc">Comparar ▸</button></span></div><div class="corpo"><div><b style="color:var(--texto)">${h(compartilhada.nome)}</b> · ${compartilhada.fundos.length} fundos</div><div class="tw"><table id="pn-ct"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`:""}
@@ -641,7 +640,11 @@ async function telaPainel(r){
     <div class="tw"><table id="pn-ft"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></section>
   <section class="painel"><div class="cab">Meus peer groups · ${PAINEL.cestas.length}<button type="button" class="btn" id="pn-nova">+ Novo peer group</button></div>
     <div class="corpo" id="pn-cestas"></div></section>`;
-  if(PEERS.grupos.length)painelCasa(idx,r.q.get("pg"));
+  if(PEERS.grupos.length){
+    painelCasa(idx,r.q.get("pg"));
+    const alterna=()=>{const min=!$("#pg-corpo").hidden;$("#pg-corpo").hidden=min;$("#pg-seta").textContent=min?"▸":"▾";$("#pg-cab").setAttribute("aria-expanded",!min);ls("lupa-pg-min",min?"1":"0");};
+    $("#pg-cab").onclick=alterna;$("#pg-cab").onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();alterna();}};
+  }
   // exportar / importar
   $("#pn-exp").onclick=()=>salvarArquivo("comparador-painel.json",new Blob([JSON.stringify({versao:1,exportado:new Date().toISOString(),fav:PAINEL.fav,cestas:PAINEL.cestas},null,1)],{type:"application/json"}));
   $("#pn-imp").onchange=async e=>{const arq=e.target.files[0];if(!arq)return;try{const x=JSON.parse(await arq.text());let nf=0,nc=0;
