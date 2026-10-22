@@ -726,6 +726,13 @@ async function listados(refDia, saida) {
     }
   }
   if (!tk.size) throw new Error("COTAHIST sem dados");
+  // O COTAHIST não vem ordenado por data: ordena cada papel e tira datas repetidas (fica o último registro do dia)
+  for (const x of tk.values()) {
+    const idx = x.d.map((_, i) => i).sort((a, b) => x.d[a] - x.d[b] || a - b);
+    const d = [], c = [], v = [], n = [];
+    for (const i of idx) { if (d.length && d[d.length - 1] === x.d[i]) { c[c.length - 1] = x.c[i]; v[v.length - 1] = x.v[i]; n[n.length - 1] = x.n[i]; continue; } d.push(x.d[i]); c.push(x.c[i]); v.push(x.v[i]); n.push(x.n[i]); }
+    x.d = d; x.c = c; x.v = v; x.n = n;
+  }
   const inst = await instrumentosB3();
   const porIsin = new Map();
   for (const [cnpj, e] of estrInfo) if (e.isin) porIsin.set(e.isin.trim().toUpperCase(), cnpj);
