@@ -733,9 +733,10 @@ async function listados(refDia, saida) {
   const lista = [];
   fs.mkdirSync(path.join(saida, "l"), { recursive: true });
   const r4 = (x) => (x == null || !isFinite(x) ? null : Math.round(x * 1e4) / 1e4);
+  const fora = { inativo: 0, outros: 0 };
   for (const [t, x] of tk) {
     const n = x.d.length;
-    if (!n || x.d[n - 1] < ultimoPregao - 30) continue; // só papéis negociados no último mês
+    if (!n || x.d[n - 1] < ultimoPregao - 30) { fora.inativo++; continue; } // só papéis negociados no último mês
     const ins = inst.get(t) || {};
     const nomeLongo = ins.nome || x.nome;
     const N = norm(nomeLongo);
@@ -745,7 +746,7 @@ async function listados(refDia, saida) {
     else if (x.bdi === "12") tipo = "FII";
     else if (/INFRA|\bIE\b|INCENTIV|DEBENT/.test(N)) tipo = "FI-Infra";
     else if (!ins.cat && /ISHARE|IT NOW|ETF|INDICE|INDEX|TREND|HASHDEX/.test(N)) tipo = "ETF";
-    else continue;
+    else { fora.outros++; continue; }
     const c = ajustaEventos(x.c);
     const cnpj = porIsin.get((x.isin || "").trim().toUpperCase()) || null;
     const ult = c[n - 1], dUlt = x.d[n - 1];
@@ -790,6 +791,7 @@ async function listados(refDia, saida) {
   lista.sort((a, b) => (b.liq21 || 0) - (a.liq21 || 0));
   fs.writeFileSync(path.join(saida, "listados.txt"), gzTexto(JSON.stringify({ ref: iso(ultimoPregao), lista })));
   const cont = {}; lista.forEach((x) => (cont[x.tipo] = (cont[x.tipo] || 0) + 1));
+  log(`listados: ${tk.size} tickers, último pregão ${iso(ultimoPregao)}, ${fora.inativo} sem negócio no último mês, ${fora.outros} de outros tipos`);
   log(`listados: ${lista.length} papéis (${Object.entries(cont).map(([k, v]) => `${v} ${k}`).join(", ")}), ${lista.filter((x) => x.cnpj).length} ligados ao CNPJ na CVM`);
 }
 
