@@ -13,7 +13,7 @@
   color-scheme:dark;
   --fundo:#000;--sup:#0b0d10;--sup2:#14181d;--borda:#2a3038;--borda2:#3d4652;
   --ambar:#ffa028;--ambar2:#8a5f20;--texto:#e8e6e3;--fraco:#8b939e;--ciano:#35d6ed;
-  --pos:#35d67f;--neg:#ff5c5c;--aviso:#ffc93c;--bench:#8b939e;
+  --pos:#35d67f;--neg:#ff5c5c;--aviso:#ffc93c;--bench:#8b939e;--xpc:#f5c518;--xpbg:rgba(245,197,24,.10);
   --s1:#35d6ed;--s2:#ffa028;--s3:#7ee787;--s4:#ff7bd5;--s5:#a5a5ff;--s6:#ffe066;--s7:#ff9f6e;--s8:#6ee7d7;
   --mono:"JetBrains Mono","IBM Plex Mono","SF Mono",Menlo,Consolas,monospace;
 }
@@ -21,7 +21,7 @@
   color-scheme:light;
   --fundo:#fff;--sup:#f5f6f8;--sup2:#eceef1;--borda:#d4d8de;--borda2:#aeb4bd;
   --ambar:#9a5b00;--ambar2:#c9a878;--texto:#14171c;--fraco:#5b6472;--ciano:#0b6b8a;
-  --pos:#0b6b4f;--neg:#a3231d;--aviso:#8a5a00;--bench:#6b7280;
+  --pos:#0b6b4f;--neg:#a3231d;--aviso:#8a5a00;--bench:#6b7280;--xpc:#7a5c00;--xpbg:rgba(245,197,24,.16);
   --s1:#0b6b8a;--s2:#b45309;--s3:#15803d;--s4:#be185d;--s5:#4338ca;--s6:#a16207;--s7:#9a3412;--s8:#0f766e;
 }
 *{box-sizing:border-box}
@@ -132,6 +132,10 @@ td.lbl{text-align:left;color:var(--fraco)}
 .leg span{display:inline-flex;gap:6px;align-items:center}
 .leg i{width:16px;height:2px;display:inline-block}
 .leg i.tr{background:repeating-linear-gradient(90deg,var(--c,var(--bench)) 0 4px,transparent 4px 7px)!important}
+tr.xp td{background:var(--xpbg)}tr.xp .nome a,tr.xp .nome{color:var(--xpc);font-weight:700}
+.tag.xp{background:var(--xpc);color:var(--fundo);border-color:var(--xpc)}
+td.q1{background:rgba(22,163,74,.16)}td.q2{background:rgba(22,163,74,.06)}td.q3{background:rgba(220,38,38,.06)}td.q4{background:rgba(220,38,38,.16)}
+tr.est td{color:var(--fraco);font-size:11px;background:var(--fundo2,transparent)}tr.est td.l{text-transform:uppercase;letter-spacing:.04em}
 .bsel{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
 .bg{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 .bx{width:58px;padding:2px 4px;font:inherit;font-size:11px}
@@ -266,6 +270,13 @@ function getJson(nome){
 }
 const meta=()=>getJson("meta.json");
 let IDX=null;
+// Peer groups da casa (fixos, publicados em peers.json) e lista de fundos da XP Asset
+let PEERS={grupos:[],xp:[]},XPSET=new Set();
+async function carregaPeers(){try{const r=await fetch("peers.json",{cache:"no-cache"});if(!r.ok)throw new Error(r.status);const j=await r.json();PEERS=j;XPSET=new Set(j.xp||[]);}catch(e){console.warn("peers.json",e);}}
+const ehXP=id=>!!id&&XPSET.has(String(id).slice(0,14));
+const tagXP=id=>ehXP(id)?'<span class="tag xp">XP</span>':"";
+// CNPJ da planilha → fundo da base: a própria classe ou, se ela só existe como subclasses, a subclasse ativa de maior PL
+function resolvePeer(idx,cnpj){const e=idx.porId.get(cnpj);if(e&&e.serie==="D"&&e.ativo)return e;let m=null;for(const f of idx.lista){if(f.cnpj!==cnpj||f.serie!=="D")continue;if(!m||(f.ativo-m.ativo||(f.pl||0)-(m.pl||0))>0)m=f;}return m&&(!e||m.ativo>=e.ativo)?m:e||m;}
 async function indice(){
   if(IDX)return IDX;
   const j=await getJson("fundos.txt"),C=j.campos,ix={};C.forEach((c,i)=>ix[c]=i);
@@ -480,7 +491,7 @@ function busca(el,op){
     if(/^\d{3,}$/.test(dig))r=idx.lista.filter(f=>f.cnpj.startsWith(dig));
     else{const ok=casaNome(q);r=idx.lista.filter(f=>ok(f.bn));}
     r=r.filter(visivel);if(op.filtro)r=r.filter(op.filtro);res=r.slice(0,40);foco=-1;
-    drop.innerHTML=res.length?res.map((f,i)=>'<button type="button" data-i="'+i+'"><span class="n">'+h(f.nome)+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</span><span class="c">'+cnpjFmt(f.cnpj)+'</span><span class="t">'+h(f.classe||f.tipo||"—")+'</span></button>').join(""):'<div class="vazio">Nenhum fundo encontrado.</div>';
+    drop.innerHTML=res.length?res.map((f,i)=>'<button type="button" data-i="'+i+'"><span class="n">'+h(f.nome)+tagXP(f.id)+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</span><span class="c">'+cnpjFmt(f.cnpj)+'</span><span class="t">'+h(f.classe||f.tipo||"—")+'</span></button>').join(""):'<div class="vazio">Nenhum fundo encontrado.</div>';
     drop.hidden=false;
   }
   inp.addEventListener("input",()=>{clearTimeout(tm);tm=setTimeout(roda,120);});
@@ -564,8 +575,8 @@ function tabelaResumo(rows,op){
   const col=x=>'<td class="'+cls(x)+'">'+pct(x)+'</td>';
   let t='<thead><tr>'+(op.selecao?'<th></th>':'')+'<th class="l">Fundo</th><th class="l">Classe</th><th>Última cota</th><th>Dia</th><th>1M</th><th>No ano</th><th>12M</th><th>% CDI 12M</th><th>Vol 12M</th><th>PL</th><th>Capt. líq. 12M</th>'+(op.remover?'<th></th>':'')+'</tr></thead><tbody>';
   for(const r of rows){
-    t+='<tr>'+(op.selecao?'<td><input type="checkbox" data-id="'+h(r.id)+'" aria-label="Selecionar '+h(r.nome)+'"></td>':'')+
-      '<td class="nome l">'+estrela(r.id)+(r.existe?'<a href="#/fundo/'+encodeURIComponent(r.id)+'">'+h(r.nome)+'</a>':h(r.nome)+' <span class="fraco">(não encontrado)</span>')+(r.mensal?'<span class="tag">MENSAL</span>':"")+(r.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td>'+
+    t+='<tr class="'+(ehXP(r.id)?"xp":"")+'">'+(op.selecao?'<td><input type="checkbox" data-id="'+h(r.id)+'" aria-label="Selecionar '+h(r.nome)+'"></td>':'')+
+      '<td class="nome l">'+estrela(r.id)+(r.existe?'<a href="#/fundo/'+encodeURIComponent(r.id)+'">'+h(r.nome)+'</a>'+tagXP(r.id):h(r.nome)+' <span class="fraco">(não encontrado)</span>')+(r.mensal?'<span class="tag">MENSAL</span>':"")+(r.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td>'+
       '<td class="l">'+h(r.classe)+'</td><td>'+(r.ultima?(r.mensal?r.ultima.slice(5,7)+"/"+r.ultima.slice(0,4):dt(r.ultima)):"—")+'</td>'+
       (r.mensal?'<td>—</td>':col(r.dia))+col(r.r1m)+col(r.ano)+col(r.r12)+
       '<td>'+(r.pcdi==null||!isFinite(r.pcdi)?"—":nf0.format(r.pcdi*100).replace("-","−")+"%")+'</td><td>'+pct(r.vol,false)+'</td><td>'+brl(r.pl)+'</td><td class="'+cls(r.cap12)+'">'+brlS(r.cap12)+'</td>'+
@@ -576,18 +587,61 @@ function tabelaResumo(rows,op){
 }
 
 // ================================================================ F1 PAINEL
+// Tabela de um peer group da casa, montada só com o índice (sem baixar a ficha de cada fundo).
+const PG_COLS=[["sel",""],["nome","Fundo","l"],["gestor","Gestor","l"],["r1m","1M",1],["rano","No ano",1],["r12","12M",1],["r24","24M",1],["r36","36M",1],["c12","% CDI 12M",1],["v12","Vol 12M",0],["s12","Sharpe 12M",1],["pl","PL",0],["cap12","Capt. líq. 12M",0]];
+function painelCasa(idx,pedido){
+  let gid=pedido||ls("lupa-pg")||PEERS.grupos[0].id;if(!PEERS.grupos.some(g=>g.id===gid))gid=PEERS.grupos[0].id;
+  const st={ord:"r12",dir:-1},sel=new Set();
+  const fmt=(k,v)=>k==="pl"?brl(v):k==="cap12"?brlS(v):k==="c12"?(v==null?"—":nf0.format(v*100).replace("-","−")+"%"):k==="s12"?num(v):k==="v12"?pct(v,false):pct(v);
+  function desenha(){
+    ls("lupa-pg",gid);
+    $("#pg-tabs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.g===gid));
+    const g=PEERS.grupos.find(x=>x.id===gid);
+    const rows=g.fundos.map(([c,nome])=>{const f=resolvePeer(idx,c);return f?{...f,ok:true}:{id:c,cnpj:c,nome:nome||c,ok:false};});
+    const achados=rows.filter(x=>x.ok);
+    // estatísticas e quartis de cada coluna numérica
+    const num_=PG_COLS.filter(c=>typeof c[2]==="number").map(c=>c[0]);
+    const est={};for(const k of num_){const v=achados.map(x=>x[k]).filter(x=>x!=null&&isFinite(x)).sort((a,b)=>a-b);est[k]=v;}
+    const q=(v,p)=>quantil(v,p);
+    const quart=(k,v)=>{const a=est[k];if(v==null||a.length<4)return"";const r=a.filter(x=>x<=v).length/a.length;const pos=PG_COLS.find(c=>c[0]===k)[2]===1;if(!pos)return"";return r>0.75?"q1":r>0.5?"q2":r>0.25?"q3":"q4";};
+    const ord=rows.slice().sort((a,b)=>{const x=a[st.ord],y=b[st.ord];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*st.dir;});
+    const nXP=achados.filter(x=>ehXP(x.id)).length,falt=rows.length-achados.length;
+    let t='<thead><tr>'+PG_COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a==="l"?"l":"")+'" data-k="'+k+'">'+l+(st.ord===k?(st.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
+    const linhaEst=(rot,fn)=>'<tr class="est"><td></td><td class="l" colspan="2">'+rot+'</td>'+PG_COLS.slice(3).map(([k])=>'<td>'+(est[k].length?fmt(k,fn(est[k])):"—")+'</td>').join("")+'</tr>';
+    t+=linhaEst("Maior",a=>a[a.length-1])+linhaEst("1º quartil",a=>q(a,0.75))+linhaEst("Mediana",a=>q(a,0.5))+linhaEst("Média",a=>a.reduce((x,y)=>x+y,0)/a.length)+linhaEst("3º quartil",a=>q(a,0.25))+linhaEst("Menor",a=>a[0]);
+    for(const f of ord){
+      if(!f.ok){t+='<tr><td></td><td class="nome l fraco">'+h(f.nome)+' <span class="fraco">('+cnpjFmt(f.cnpj)+' · não encontrado na base da CVM)</span></td><td colspan="'+(PG_COLS.length-2)+'"></td></tr>';continue;}
+      t+='<tr class="'+(ehXP(f.id)?"xp":"")+'"><td><input type="checkbox" data-id="'+h(f.id)+'"'+(sel.has(f.id)?" checked":"")+' aria-label="Selecionar '+h(f.nome)+'"></td><td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td><td class="l fraco" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+h(f.gestor||"—")+'</td>'+
+        PG_COLS.slice(3).map(([k])=>'<td class="'+quart(k,f[k])+' '+(["r1m","rano","r12","r24","r36","cap12"].includes(k)?cls(f[k]):"")+'">'+fmt(k,f[k])+'</td>').join("")+'</tr>';
+    }
+    $("#pg-box").innerHTML='<div class="corpo" style="padding-top:0"><div class="linha" style="justify-content:space-between"><span class="fraco">'+h(g.nome)+' · '+achados.length+' fundos'+(nXP?' · <b style="color:var(--xpc)">'+nXP+' da XP Asset</b>':'')+(falt?' · '+falt+' não encontrados':'')+' · verde = quartil de cima, vermelho = quartil de baixo</span>'+
+      '<span class="linha"><span class="sub" id="pg-sel">'+sel.size+' selecionados</span><button class="btn" id="pg-cmp"'+(sel.size?"":" disabled")+'>Comparar ▸</button>'+seletorCesta("pg-cst")+'<button class="btn" id="pg-dup" title="Cria uma cópia editável em Meus peer groups">Duplicar como meu</button>'+botoesExportar("pg-x")+'</span></div></div><div class="tw"><table id="pg-t">'+t+'</tbody></table></div>';
+    $("#pg-t").onclick=e=>{const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;if(st.ord===k)st.dir*=-1;else{st.ord=k;st.dir=["nome","gestor","v12"].includes(k)?1:-1;}desenha();}};
+    $("#pg-t").onchange=e=>{const c=e.target.closest("input[data-id]");if(!c)return;if(c.checked)sel.add(c.dataset.id);else sel.delete(c.dataset.id);$("#pg-sel").textContent=sel.size+" selecionados"+(sel.size>MAXF?" (a comparação usa 8)":"");$("#pg-cmp").disabled=!sel.size;};
+    $("#pg-cmp").onclick=()=>irCompara({f:[...sel].slice(0,MAXF),j:"12m",b:["CDI"],de:"",ate:""});
+    ligaSeletorCesta($("#pg-cst"),()=>[...sel]);
+    $("#pg-dup").onclick=()=>{novaCesta(g.nome+" (cópia)",achados.map(x=>x.id));toast("Cópia criada em Meus peer groups");render();};
+    ligaExportar("pg-x",async()=>exportarCSV("peer_"+g.id+".csv",["CNPJ","Fundo","Gestor","XP Asset"].concat(PG_COLS.slice(3).map(c=>c[1]+(["r1m","rano","r12","r24","r36","v12"].includes(c[0])?" (%)":c[0]==="c12"?" (%)":c[0]==="pl"||c[0]==="cap12"?" (R$)":""))),
+      ord.filter(x=>x.ok).map(f=>[cnpjFmt(f.cnpj),f.nome,f.gestor||"",ehXP(f.id)?"sim":"não"].concat(PG_COLS.slice(3).map(([k])=>f[k]==null?null:["pl","cap12","s12"].includes(k)?f[k]:Math.round(f[k]*1e6)/1e4)))));
+  }
+  $("#pg-tabs").onclick=e=>{const b=e.target.closest("button[data-g]");if(b){gid=b.dataset.g;sel.clear();desenha();}};
+  desenha();
+}
 async function telaPainel(r){
   const idx=await indice();await benchs();
   const cn=r.q.get("cesta"),cf=(r.q.get("f")||"").split(",").filter(Boolean);
   const compartilhada=cn&&cf.length?{nome:cn,fundos:cf}:null;
   app.innerHTML=`
+  ${PEERS.grupos.length?`<section class="painel"><div class="cab">Peer groups da casa<span class="sub">fixos, iguais para todos · ${h(PEERS.fonte||"")}</span></div>
+    <div class="corpo"><div class="seg" id="pg-tabs">${PEERS.grupos.map(g=>'<button type="button" data-g="'+h(g.id)+'">'+h(g.nome)+'</button>').join("")}</div></div><div id="pg-box"></div></section>`:""}
   <section class="painel"><div class="cab">Meu painel<span class="linha"><span class="sub">salvo neste navegador</span><button type="button" class="btn" id="pn-exp">Exportar painel</button><label class="btn" style="cursor:pointer">Importar painel<input type="file" id="pn-imp" accept=".json,application/json" hidden></label></span></div>
     <div class="corpo"><div class="fraco" style="font-size:11px">Favoritos e peer groups ficam guardados só neste navegador, e ninguém mais vê. Para levar para outro aparelho, use o link de cada peer group ou exporte o painel e importe do outro lado.</div></div></section>
   ${compartilhada?`<section class="painel aviso"><div class="cab">Peer group compartilhado<span class="linha"><button class="btn" id="pn-sv">Salvar no meu painel</button><button class="btn" id="pn-cmpc">Comparar ▸</button></span></div><div class="corpo"><div><b style="color:var(--texto)">${h(compartilhada.nome)}</b> · ${compartilhada.fundos.length} fundos</div><div class="tw"><table id="pn-ct"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`:""}
   <section class="painel"><div class="cab">Favoritos · ${PAINEL.fav.length}<span class="linha"><span class="sub" id="pn-fsel">0 selecionados</span><button class="btn" id="pn-fcmp" disabled>Comparar ▸</button>${seletorCesta("pn-fcst")}</span></div>
     <div class="tw"><table id="pn-ft"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></section>
-  <section class="painel"><div class="cab">Peer groups · ${PAINEL.cestas.length}<button type="button" class="btn" id="pn-nova">+ Novo peer group</button></div>
+  <section class="painel"><div class="cab">Meus peer groups · ${PAINEL.cestas.length}<button type="button" class="btn" id="pn-nova">+ Novo peer group</button></div>
     <div class="corpo" id="pn-cestas"></div></section>`;
+  if(PEERS.grupos.length)painelCasa(idx,r.q.get("pg"));
   // exportar / importar
   $("#pn-exp").onclick=()=>salvarArquivo("comparador-painel.json",new Blob([JSON.stringify({versao:1,exportado:new Date().toISOString(),fav:PAINEL.fav,cestas:PAINEL.cestas},null,1)],{type:"application/json"}));
   $("#pn-imp").onchange=async e=>{const arq=e.target.files[0];if(!arq)return;try{const x=JSON.parse(await arq.text());let nf=0,nc=0;
@@ -634,7 +688,7 @@ async function telaPainel(r){
 // ================================================================ rotas
 const app=$("#app");
 let rotaAtual="";
-function rota(){const hsh=location.hash.replace(/^#\/?/,"");const i=hsh.indexOf("?");const cam=i<0?hsh:hsh.slice(0,i),qs=i<0?"":hsh.slice(i+1);const p=cam.split("/").map(decodeURIComponent);return{nome:p[0]||(temPainel()?"painel":"ranking"),arg:p.slice(1).join("/"),q:new URLSearchParams(qs)};}
+function rota(){const hsh=location.hash.replace(/^#\/?/,"");const i=hsh.indexOf("?");const cam=i<0?hsh:hsh.slice(0,i),qs=i<0?"":hsh.slice(i+1);const p=cam.split("/").map(decodeURIComponent);return{nome:p[0]||"painel",arg:p.slice(1).join("/"),q:new URLSearchParams(qs)};}
 function ir(x){if(location.hash!==x)location.hash=x;else render();}
 let liberado=false;
 async function render(){
@@ -834,8 +888,8 @@ function montarRanking(el,op){
     const jl=(JAN_RK.find(j=>j[0]===F.jan)||[0,""])[1];
     let t='<thead><tr>'+COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a||"")+'" data-k="'+k+'">'+l+(PREF[k]?" "+jl:"")+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
     for(const f of vis){
-      t+='<tr><td><input type="checkbox" data-id="'+h(f.id)+'" aria-label="Selecionar '+h(f.nome)+'"'+(sel.has(f.id)?" checked":"")+'></td>'+
-        '<td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+'</td>'+
+      t+='<tr class="'+(ehXP(f.id)?"xp":"")+'"><td><input type="checkbox" data-id="'+h(f.id)+'" aria-label="Selecionar '+h(f.nome)+'"'+(sel.has(f.id)?" checked":"")+'></td>'+
+        '<td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+'</td>'+
         '<td class="l">'+h(f.classe||f.tipo||"—")+(f.ativo?"":'<span class="tag enc">'+h((f.situacao||"encerrado").toUpperCase().slice(0,14))+'</span>')+'</td>'+
         (()=>{const r=valorRk(f,"ret",F),c=valorRk(f,"pcdi",F);return'<td class="'+cls(r)+'">'+pct(r)+'</td><td>'+(c==null?"—":nf0.format(c*100).replace("-","−")+"%")+'</td><td>'+pct(valorRk(f,"vol",F),false)+'</td><td>'+num(valorRk(f,"sharpe",F))+'</td>';})()+
         '<td>'+(f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"%")+'</td><td>'+brl(f.pl)+'</td><td class="'+cls(f.cap12)+'">'+brlS(f.cap12)+'</td>'+
@@ -929,7 +983,7 @@ async function telaFundo(r){
   const link=o=>{const p=new URLSearchParams({aba,j:jan});if(de)p.set("de",de);if(ate)p.set("ate",ate);if(bq!=null)p.set("b",bq);for(const k in o){if(o[k]==="")p.delete(k);else p.set(k,o[k]);}return"#/fundo/"+encodeURIComponent(id)+"?"+p.toString();};
   const k=(rot,val)=>'<div><div class="k">'+rot+'</div><div class="v">'+val+'</div></div>';
   app.innerHTML=`
-  <section class="painel"><div class="cab"><span style="color:var(--texto)">${estrela(f.id)}${h(f.nome)}</span><span class="linha">${(()=>{const rg=(f.documentos||[]).find(x=>x.t==="Regulamento");return rg?'<a class="btn" href="'+h(rg.u)+'" target="_blank" rel="noopener" title="Regulamento entregue à CVM em '+h(dt(rg.d))+'">Regulamento ↗</a>':"";})()}${seletorCesta("fd-cst")}<a class="btn" href="#" id="fd-cmp">Comparar ▸</a></span></div><div class="corpo">
+  <section class="painel"><div class="cab"><span style="color:${ehXP(f.id)?"var(--xpc)":"var(--texto)"}">${estrela(f.id)}${h(f.nome)}${tagXP(f.id)}</span><span class="linha">${(()=>{const rg=(f.documentos||[]).find(x=>x.t==="Regulamento");return rg?'<a class="btn" href="'+h(rg.u)+'" target="_blank" rel="noopener" title="Regulamento entregue à CVM em '+h(dt(rg.d))+'">Regulamento ↗</a>':"";})()}${seletorCesta("fd-cst")}<a class="btn" href="#" id="fd-cmp">Comparar ▸</a></span></div><div class="corpo">
     <div class="kv">
       ${k("CNPJ",cnpjFmt(f.cnpj))}${k("Classe",h(f.classe||f.tipo||"—"))}${k("Situação",h(f.ativo?"ativo":(f.situacao||"encerrado").toLowerCase()))}
       ${k("Início do fundo",dt(f.inicio))}${k("Série na base",f.primeira?dt(f.primeira)+" → "+dt(f.ultima):"—")}${k("Pregões",f.pregoes?nf0.format(f.pregoes):"—")}
@@ -1116,7 +1170,7 @@ temaBtn.onclick=()=>{const t=document.documentElement.getAttribute("data-tema")=
 meta().then(m=>{$("#st-dados").textContent="Dados até "+dt(m.ultima_cota);$("#st-series").textContent=nf0.format(m.fundos)+" fundos · "+nf0.format(m.com_serie_diaria||0)+" séries diárias";
   $("#rodape").textContent="Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI: "+(m.fontes&&m.fontes.cdi||"—")+" · Ibovespa: "+(m.fontes&&m.fontes.ibov||"—")+" · Demais benchmarks: B3 (Small Caps, IDIV, IFIX), ANBIMA (IMA, IRF-M, IHFA), Ipeadata (IPCA, IGP-M, dólar PTAX) e Yahoo Finance (S&P 500)"+" · Atualizado em "+new Date(m.atualizado).toLocaleString("pt-BR")+" · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento";}).catch(()=>{});
 let rz;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(rotaAtual==="compara"||rotaAtual==="fundo")render();},250);});
-acesso().then(()=>{liberado=true;render();}).catch(e=>console.error(e));
+acesso().then(carregaPeers).then(()=>{liberado=true;render();}).catch(e=>console.error(e));
 })();
 </script>
 </body>
