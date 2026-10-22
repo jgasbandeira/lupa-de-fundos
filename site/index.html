@@ -272,7 +272,7 @@ const meta=()=>getJson("meta.json");
 let IDX=null;
 // Peer groups da casa (fixos, publicados em peers.json) e lista de fundos da XP Asset
 let PEERS={grupos:[],xp:[]},XPSET=new Set();
-async function carregaPeers(){try{const r=await fetch("peers.json",{cache:"no-cache"});if(!r.ok)throw new Error(r.status);const j=await r.json();PEERS=j;XPSET=new Set(j.xp||[]);}catch(e){console.warn("peers.json",e);}}
+async function carregaPeers(){try{const j=await getJson("peers.txt");PEERS=j;XPSET=new Set(j.xp||[]);}catch(e){console.warn("peers.json",e);}}
 const ehXP=id=>!!id&&XPSET.has(String(id).slice(0,14));
 const tagXP=id=>ehXP(id)?'<span class="tag xp">XP</span>':"";
 // CNPJ da planilha → fundo da base: a própria classe ou, se ela só existe como subclasses, a subclasse ativa de maior PL

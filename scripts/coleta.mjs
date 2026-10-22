@@ -1203,6 +1203,14 @@ async function main() {
   const idx = gzTexto(JSON.stringify({ campos, ref: iso(refDia), fundos: lista }));
   fs.writeFileSync(path.join(SAIDA, "fundos.txt"), idx);
   fs.writeFileSync(path.join(SAIDA, "indices.txt"), gzTexto(JSON.stringify(indices)));
+  // Peer groups da casa: publicados junto com os dados (cifrados quando há senha). Com senha, o peers.json aberto sai do site publicado.
+  const arqPeers = process.env.PEERS_JSON_FILE || path.join(path.dirname(SAIDA), "peers.json");
+  try {
+    const txt = process.env.PEERS_JSON || fs.readFileSync(arqPeers, "utf8");
+    JSON.parse(txt);
+    fs.writeFileSync(path.join(SAIDA, "peers.txt"), gzTexto(txt));
+    if (CHAVE && !process.env.PEERS_JSON_FILE && fs.existsSync(arqPeers)) fs.rmSync(arqPeers);
+  } catch (e) { aviso(`peers: ${e.message}`); }
   if (CHAVE) fs.writeFileSync(path.join(SAIDA, "chave.json"), JSON.stringify({ v: 1, iter: ITER, sal: SAL.toString("base64"), teste: cifra(Buffer.from(TESTE)).toString("base64") }));
   const comSerie = lista.filter((x) => x[5] === "D").length;
   const meta = {
