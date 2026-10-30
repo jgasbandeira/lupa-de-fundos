@@ -1342,10 +1342,15 @@ async function main() {
     };
   }
 
+  // Fundos cancelados ficam fora do site
+  const cancelado = (info) => /cancelad/i.test(info.situacao || "") || (!info.ativo && info.situacao === "Sem cadastro (só no informe)");
+  let cancelados = 0;
   // 1) Fundos com informe diário
   for (const [id, f] of fundos) {
     if (f.d.length < 2) continue;
     const info = montarInfo(id, f.cnpj, f.sub, f);
+    if (cancelado(info)) { cancelados++; continue; }
+    const n_ = f.q.length, rdia = n_ > 1 && f.ult >= refDia - 10 ? Math.round((f.q[n_ - 1] / f.q[n_ - 2] - 1) * 1e6) / 1e6 : null;
     const ms = JANELAS_RK.map(([, meses]) => metricasJanela(f, fatorCdi, refDia, meses));
     delete info._mensal;
     const cap12 = captacao12(f, refDia);
@@ -1356,7 +1361,7 @@ async function main() {
     pontos += f.d.length;
     lista.push([id, info.nome, info.classe, info.situacao, info.ativo, info.serie,
       info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima, cap12, inv,
-      ...ms.flatMap((m) => [m?.r ?? null, m?.c ?? null, m?.v ?? null, m?.s ?? null])]);
+      ...ms.flatMap((m) => [m?.r ?? null, m?.c ?? null, m?.v ?? null, m?.s ?? null]), rdia]);
   }
   // 2) Fundos e classes só com cadastro (estruturados, pré-operacionais, cancelados sem informe)
   const cnpjsComSerie = new Set([...fundos.values()].filter((f) => f.d.length >= 2).map((f) => f.cnpj));
@@ -1364,18 +1369,20 @@ async function main() {
     if (cnpjsComSerie.has(cnpj) || guardaChuva.has(cnpj)) continue;
     const info = montarInfo(cnpj, cnpj, "", null);
     if (!info.nome || info.nome.startsWith("Fundo ")) continue;
+    if (cancelado(info)) { cancelados++; continue; }
     const { _mensal, ...resto } = info;
     escrever(cnpj, _mensal ? { ...resto, mensal: _mensal } : resto);
     soCadastro++;
     if (_mensal) comMensal++;
     lista.push([cnpj, info.nome, info.classe, info.situacao, info.ativo, info.serie,
       info.taxa_adm, info.pl, info.gestor, info.admin, info.inicio, info.univ, info.cotistas, info.tipo, info.ultima, null, 0,
-      ...JANELAS_RK.flatMap(([k]) => [k === "12" ? info.ret12_mensal : null, null, null, null])]);
+      ...JANELAS_RK.flatMap(([k]) => [k === "12" ? info.ret12_mensal : null, null, null, null]), null]);
   }
+  log(`fundos cancelados fora do site: ${cancelados.toLocaleString("pt-BR")}`);
 
   // Ativos primeiro, depois por PL
   const campos = ["id", "nome", "classe", "situacao", "ativo", "serie", "taxa_adm", "pl", "gestor", "admin", "inicio", "univ", "cotistas", "tipo", "ultima", "cap12", "inv",
-    ...JANELAS_RK.flatMap(([k]) => ["r" + k, "c" + k, "v" + k, "s" + k])];
+    ...JANELAS_RK.flatMap(([k]) => ["r" + k, "c" + k, "v" + k, "s" + k]), "rdia"];
   const iPl = campos.indexOf("pl");
   lista.sort((a, b) => b[4] - a[4] || (b[iPl] || 0) - (a[iPl] || 0));
   // Captação e PL por gestora e por administradora (fundos para investidor, ativos), últimos 37 meses, em R$ mil
