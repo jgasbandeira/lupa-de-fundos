@@ -592,22 +592,14 @@ function tabelaResumo(rows,op){
 const PG_COLS=[["sel",""],["nome","Fundo","l"],["gestor","Gestor","l"],["rdia","Dia",1],["r1m","1M",1],["rano","No ano",1],["r12","12M",1],["r24","24M",1],["r36","36M",1],["c12","% CDI 12M",1],["v12","Vol 12M",0],["s12","Sharpe 12M",1],["pl","PL",0],["cap12","Capt. líq. 12M",0]];
 function painelCasa(idx,pedido){
   let gid=pedido||ls("lupa-pg")||PEERS.grupos[0].id;if(!PEERS.grupos.some(g=>g.id===gid))gid=PEERS.grupos[0].id;
-  const st={ord:"r12",dir:-1,de:"",ate:""},sel=new Set();try{Object.assign(st,JSON.parse(ls("lupa-pg-per")||"{}"));}catch(e){}
+  const st={ord:"r12",dir:-1},sel=new Set();
   const fmt=(k,v)=>k==="pl"?brl(v):k==="cap12"?brlS(v):k==="c12"||k==="cper"?(v==null?"—":nf0.format(v*100).replace("-","−")+"%"):k==="s12"||k==="sper"?num(v):k==="v12"||k==="vper"?pct(v,false):pct(v);
   const RET=["rdia","r1m","rano","r12","r24","r36","rper","cap12"];
-  let calcId=0;
   function desenha(){
     ls("lupa-pg",gid);
     $("#pg-tabs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.g===gid));
     const g=PEERS.grupos.find(x=>x.id===gid);
-    const per=!!(st.de&&st.ate&&st.de<st.ate);
-    const PG=PG_COLS.concat(per?[["rper","Ret "+rotPer(st.de,st.ate),1],["cper","% CDI período",1],["vper","Vol período",0],["sper","Sharpe período",1]]:[]);
-    const barra='<div class="linha" style="margin:0 0 6px"><span class="rotulo">Janela personalizada</span><input type="date" id="pg-de" value="'+h(st.de)+'" aria-label="Data inicial"> <span class="fraco">→</span> <input type="date" id="pg-ate" value="'+h(st.ate)+'" aria-label="Data final">'+(per?'<button class="btn" id="pg-limpa">Limpar</button>':'')+'</div>';
-    const ligaPer=()=>{const sv=()=>{ls("lupa-pg-per",JSON.stringify({de:st.de,ate:st.ate}));desenha();};$("#pg-de").onchange=e=>{st.de=e.target.value;sv();};$("#pg-ate").onchange=e=>{st.ate=e.target.value;sv();};const l=$("#pg-limpa");if(l)l.onclick=()=>{st.de="";st.ate="";if(st.ord.endsWith("per"))st.ord="r12";sv();};};
-    if(per){const orig=g.fundos.map(([c])=>resolvePeer(idx,c)).filter(Boolean),chave=st.de+"|"+st.ate;
-      if(orig.some(f=>f._per!==chave)){const id=++calcId;$("#pg-box").innerHTML='<div class="corpo" style="padding-top:0">'+barra+'<div class="carregando" id="pg-prog">Calculando o período para '+orig.length+' fundos…</div></div>';ligaPer();
-        calculaPeriodo(orig,st.de,st.ate,(a,b)=>{const p=$("#pg-prog");if(p)p.textContent="Calculando o período… "+a+" de "+b;}).then(()=>{if(id===calcId)desenha();});return;}}
-    if(!per&&st.ord.endsWith("per"))st.ord="r12";
+    const PG=PG_COLS;
     const rows=g.fundos.map(([c,nome])=>{const f=resolvePeer(idx,c);return f?{...f,ok:true}:{id:c,cnpj:c,nome:nome||c,ok:false};});
     const achados=rows.filter(x=>x.ok);
     // estatísticas e quartis de cada coluna numérica
@@ -624,9 +616,8 @@ function painelCasa(idx,pedido){
       t+='<tr class="'+(ehXP(f.id)?"xp":"")+'"><td><input type="checkbox" data-id="'+h(f.id)+'"'+(sel.has(f.id)?" checked":"")+' aria-label="Selecionar '+h(f.nome)+'"></td><td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td><td class="l fraco" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+h(f.gestor||"—")+'</td>'+
         PG.slice(3).map(([k])=>'<td class="'+quart(k,f[k])+' '+(RET.includes(k)?cls(f[k]):"")+'">'+fmt(k,f[k])+'</td>').join("")+'</tr>';
     }
-    $("#pg-box").innerHTML='<div class="corpo" style="padding-top:0">'+barra+'<div class="linha" style="justify-content:space-between"><span class="fraco">'+h(g.nome)+' · '+achados.length+' fundos'+(nXP?' · <b style="color:var(--xpc)">'+nXP+' da XP Asset</b>':'')+(falt?' · '+falt+' não encontrados':'')+' · verde = quartil de cima, vermelho = quartil de baixo</span>'+
+    $("#pg-box").innerHTML='<div class="corpo" style="padding-top:0"><div class="linha" style="justify-content:space-between"><span class="fraco">'+h(g.nome)+' · '+achados.length+' fundos'+(nXP?' · <b style="color:var(--xpc)">'+nXP+' da XP Asset</b>':'')+(falt?' · '+falt+' não encontrados':'')+' · verde = quartil de cima, vermelho = quartil de baixo</span>'+
       '<span class="linha"><span class="sub" id="pg-sel">'+sel.size+' selecionados</span><button class="btn" id="pg-cmp"'+(sel.size?"":" disabled")+'>Comparar ▸</button>'+seletorCesta("pg-cst")+'<button class="btn" id="pg-dup" title="Cria uma cópia editável em Meus peer groups">Duplicar como meu</button>'+botoesExportar("pg-x")+'</span></div></div><div class="tw"><table id="pg-t">'+t+'</tbody></table></div>';
-    ligaPer();
     $("#pg-t").onclick=e=>{const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;if(st.ord===k)st.dir*=-1;else{st.ord=k;st.dir=["nome","gestor","v12","vper"].includes(k)?1:-1;}desenha();}};
     $("#pg-t").onchange=e=>{const c=e.target.closest("input[data-id]");if(!c)return;if(c.checked)sel.add(c.dataset.id);else sel.delete(c.dataset.id);$("#pg-sel").textContent=sel.size+" selecionados"+(sel.size>MAXF?" (a comparação usa 8)":"");$("#pg-cmp").disabled=!sel.size;};
     $("#pg-cmp").onclick=()=>irCompara({f:[...sel].slice(0,MAXF),j:"12m",b:["CDI"],de:"",ate:""});
@@ -838,17 +829,7 @@ function prazo(f){if(f.conversao==null&&f.pagamento==null)return"—";return"D+"
 // ================================================================ F2 RANKING (tabela reutilizada por F3/F4/F5)
 const UNIVERSOS=[["todos","Todos",0],["aberto","Aberto",2],["exclusivo","Exclusivo",4]];
 // Janelas do ranking: métricas pré-calculadas no índice (r = retorno, c = % do CDI, v = volatilidade, s = Sharpe)
-const JAN_RK=[["1m","1M"],["ano","No ano"],["12","12M"],["24","24M"],["36","36M"],["per","Personalizada"]];
-// Janela personalizada: baixa a ficha de cada fundo e calcula retorno, % do CDI, volatilidade e Sharpe entre as datas.
-const LIM_PER=400;
-async function calculaPeriodo(lista,de,ate,prog){
-  await benchs();
-  const chave=de+"|"+ate,falta=lista.filter(f=>f._per!==chave);let feitos=0;
-  const um=async f=>{let m=null;try{const x=await ficha(f.id);if(x&&x.d){const w=recorta(x.d,x.q,de,ate);if(w.d.length>2&&(Date.parse(w.d[0])-Date.parse(de))/864e5<=7)m=metricas(w.d,w.v,null);}}catch(e){}
-    f._per=chave;f.rper=m&&m.ret;f.cper=m&&m.pcdi;f.vper=m&&m.vol;f.sper=m&&m.sharpe;feitos++;if(prog&&feitos%20===0)prog(feitos,falta.length);};
-  for(let i=0;i<falta.length;i+=12)await Promise.all(falta.slice(i,i+12).map(um));
-}
-const rotPer=(de,ate)=>de&&ate?dt(de)+" a "+dt(ate):"período";
+const JAN_RK=[["1m","1M"],["ano","No ano"],["12","12M"],["24","24M"],["36","36M"]];
 const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["rdia","Dia"],["ret","Ret"],["pcdi","% CDI"],["vol","Vol"],["sharpe","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["cap12","Capt. líq. 12M"],["gestor","Gestor","l"],["inicio","Início"]];
 const PREF={ret:"r",pcdi:"c",vol:"v",sharpe:"s"};
 const valorRk=(f,k,F)=>PREF[k]?f[PREF[k]+F.jan]:f[k];
@@ -886,8 +867,7 @@ function montarRanking(el,op){
       <div><div class="rotulo">Classe</div><select id="rk-c"><option value="">todas</option>${classes.map(c=>'<option>'+h(c)+'</option>').join("")}</select></div>
       <div><div class="rotulo">Situação</div><select id="rk-s"><option value="">todas</option>${sits.map(([s,n])=>'<option value="'+h(s)+'">'+h(s)+' ('+nf0.format(n)+')</option>').join("")}</select></div>
       <div${op.semSerie?" hidden":""}><div class="rotulo">Série</div><div class="seg" id="rk-se"><button type="button" data-s="todas">Todas</button><button type="button" data-s="diaria">Diária</button><button type="button" data-s="mensal">Só mensal</button></div></div>
-      <div><div class="rotulo">Janela</div><div class="seg" id="rk-j">${JAN_RK.map(j=>'<button type="button" data-j="'+j[0]+'">'+j[1]+'</button>').join("")}</div>
-        <div class="linha" id="rk-per" style="margin-top:6px"${F.jan==="per"?"":" hidden"}><input type="date" id="rk-de" aria-label="Data inicial"> <span class="fraco">→</span> <input type="date" id="rk-ate" aria-label="Data final"></div></div>
+      <div><div class="rotulo">Janela</div><div class="seg" id="rk-j">${JAN_RK.map(j=>'<button type="button" data-j="'+j[0]+'">'+j[1]+'</button>').join("")}</div></div>
       ${op.investidor?'<label class="canc" title="Esconde fundos exclusivos, masters e fundos com um único cotista (espelhos e veículos internos), que repetem o mesmo produto no ranking"><input type="checkbox" id="rk-inv"> Só fundos para investidor</label>':""}
       <div><div class="rotulo">PL mínimo (R$)</div><input type="number" id="rk-pl" min="0" step="1000000" placeholder="0" style="width:130px"></div>
       <div style="margin-left:auto;text-align:right"><div class="rotulo">População</div><div style="color:var(--ambar);font-size:16px;font-weight:700" id="rk-n">—</div><div class="fraco" style="font-size:10px" id="rk-nd"></div></div>
@@ -900,9 +880,7 @@ function montarRanking(el,op){
   let tm;const muda=()=>{mostrar=200;op.aoMudar&&op.aoMudar(F);desenha();};
   q.oninput=()=>{F.q=q.value;clearTimeout(tm);tm=setTimeout(muda,150);};
   $("#rk-u",el).onclick=e=>{const b=e.target.closest("button");if(b){F.u=b.dataset.u;botoes();muda();}};
-  $("#rk-j",el).onclick=e=>{const b=e.target.closest("button");if(b){F.jan=b.dataset.j;$("#rk-per",el).hidden=F.jan!=="per";botoes();muda();}};
-  $("#rk-de",el).value=F.de||"";$("#rk-ate",el).value=F.ate||"";
-  $("#rk-de",el).onchange=e=>{F.de=e.target.value;muda();};$("#rk-ate",el).onchange=e=>{F.ate=e.target.value;muda();};
+  $("#rk-j",el).onclick=e=>{const b=e.target.closest("button");if(b){F.jan=b.dataset.j;botoes();muda();}};
   const inv=$("#rk-inv",el);if(inv){inv.checked=F.inv;inv.onchange=()=>{F.inv=inv.checked;muda();};}
   $("#rk-se",el).onclick=e=>{const b=e.target.closest("button");if(b){F.serie=b.dataset.s;botoes();muda();}};
   $("#rk-c",el).onchange=e=>{F.classe=e.target.value;muda();};$("#rk-s",el).onchange=e=>{F.sit=e.target.value;muda();};
@@ -911,22 +889,12 @@ function montarRanking(el,op){
   $("#rk-cmp",el).onclick=()=>adicionarComparar([...sel]);
   ligaSeletorCesta($("#rk-cst",el),()=>[...sel]);
   botoes();
-  let calcId=0;
   function desenha(){
-    const filtrada=aplicaFiltros(op.lista,F,op.fixo);
+    const filtrada=aplicaFiltros(op.lista,F,op.fixo),ord=ordena(filtrada,F);
     $("#rk-n",el).textContent=nf0.format(filtrada.length);$("#rk-nd",el).textContent="fundos elegíveis no universo "+(UNIVERSOS.find(u=>u[0]===F.u)||UNIVERSOS[0])[1].toLowerCase();
-    let aviso="";
-    if(F.jan==="per"){
-      if(!F.de||!F.ate||F.de>=F.ate){$("#rk-t",el).innerHTML='<tbody><tr><td class="l fraco">Escolha as datas inicial e final da janela personalizada.</td></tr></tbody>';$("#rk-mais",el).hidden=true;return;}
-      const chave=F.de+"|"+F.ate,alvo=filtrada.slice().sort((a,b)=>(b.pl||0)-(a.pl||0)).slice(0,LIM_PER);
-      if(alvo.some(f=>f._per!==chave)){const id=++calcId;$("#rk-t",el).innerHTML='<tbody><tr><td class="l carregando" id="rk-prog">Calculando o período para '+nf0.format(alvo.length)+' fundos…</td></tr></tbody>';
-        calculaPeriodo(alvo,F.de,F.ate,(a,b)=>{const p=$("#rk-prog",el);if(p)p.textContent="Calculando o período… "+a+" de "+b;}).then(()=>{if(id===calcId)desenha();});return;}
-      if(filtrada.length>LIM_PER)aviso='<tr><td colspan="'+COLS.length+'" class="l" style="color:var(--aviso)">A janela personalizada é calculada para os '+LIM_PER+' maiores fundos por PL desta lista ('+nf0.format(filtrada.length)+' no total). Use os filtros para chegar aos fundos que interessam.</td></tr>';
-    }
-    const base=F.jan==="per"?filtrada.filter(f=>f._per===F.de+"|"+F.ate):filtrada,ord=ordena(base,F);
     const vis=ord.slice(0,mostrar);
-    const jl=F.jan==="per"?rotPer(F.de,F.ate):(JAN_RK.find(j=>j[0]===F.jan)||[0,""])[1];
-    let t='<thead><tr>'+COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a||"")+'" data-k="'+k+'">'+l+(PREF[k]?" "+jl:"")+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>'+aviso;
+    const jl=(JAN_RK.find(j=>j[0]===F.jan)||[0,""])[1];
+    let t='<thead><tr>'+COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a||"")+'" data-k="'+k+'">'+l+(PREF[k]?" "+jl:"")+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
     for(const f of vis){
       t+='<tr class="'+(ehXP(f.id)?"xp":"")+'"><td><input type="checkbox" data-id="'+h(f.id)+'" aria-label="Selecionar '+h(f.nome)+'"'+(sel.has(f.id)?" checked":"")+'></td>'+
         '<td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+'</td>'+
