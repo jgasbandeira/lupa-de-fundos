@@ -111,6 +111,7 @@ table{border-collapse:collapse;width:100%}
 th,td{padding:5px 8px;border-bottom:1px solid var(--borda);text-align:right;white-space:nowrap;font-size:12px}
 th{font-size:11px;color:var(--ambar);font-weight:700;letter-spacing:.04em;text-transform:uppercase;position:sticky;top:0;background:var(--sup);z-index:1}
 th.ord{cursor:pointer;user-select:none}
+th[title]:not([title=""]),.seg button[title]:not([title=""]){text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:var(--fraco)}
 th.ord:hover{color:var(--texto)}
 td.l,th.l{text-align:left}
 td.nome{white-space:normal;min-width:260px;max-width:420px;text-transform:uppercase}
@@ -609,7 +610,8 @@ function painelCasa(idx,pedido){
     const quart=(k,v)=>{const a=est[k];if(v==null||a.length<4)return"";const r=a.filter(x=>x<=v).length/a.length;const pos=PG.find(c=>c[0]===k)[2]===1;if(!pos)return"";return r>0.75?"q1":r>0.5?"q2":r>0.25?"q3":"q4";};
     const ord=rows.slice().sort((a,b)=>{const x=a[st.ord],y=b[st.ord];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*st.dir;});
     const nXP=achados.filter(x=>ehXP(x.id)).length,falt=rows.length-achados.length;
-    let t='<thead><tr>'+PG.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a==="l"?"l":"")+'" data-k="'+k+'">'+l+(st.ord===k?(st.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
+    const dk={rdia:"dia",r1m:"1m",rano:"ano",r12:"12",r24:"24",r36:"36",c12:"12",v12:"12",s12:"12",cap12:"cap12"};
+    let t='<thead><tr>'+PG.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a==="l"?"l":"")+'" data-k="'+k+'" title="'+h(dk[k]?dicaJan(dk[k]):"")+'">'+l+(st.ord===k?(st.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
     const _linhaEst=(rot,fn)=>'<tr class="est"><td></td><td class="l" colspan="2">'+rot+'</td>'+PG.slice(3).map(([k])=>'<td>'+(est[k].length?fmt(k,fn(est[k])):"—")+'</td>').join("")+'</tr>';
     for(const f of ord){
       if(!f.ok){t+='<tr><td></td><td class="nome l fraco">'+h(f.nome)+' <span class="fraco">('+cnpjFmt(f.cnpj)+' · não encontrado na base da CVM)</span></td><td colspan="'+(PG.length-2)+'"></td></tr>';continue;}
@@ -749,7 +751,7 @@ async function telaCompara(r){
   busca($("#cmp-busca"),{placeholder:"Buscar fundo por nome ou CNPJ…",escolher:f=>{if(st.f.length>=MAXF||st.f.includes(f.id))return;st.f.push(f.id);irCompara(st);}});
   $("#cmp-chips").innerHTML=st.f.map((id,i)=>{const f=idx.porId.get(id);return'<span class="chip"><i style="background:'+CORES[i]+'"></i><a href="#/fundo/'+encodeURIComponent(id)+'" title="'+h(f?f.nome:id)+'">'+h(f?f.nome:id)+'</a><button type="button" data-x="'+h(id)+'" aria-label="Remover">×</button></span>';}).join("");
   $("#cmp-chips").onclick=e=>{const b=e.target.closest("button[data-x]");if(b){st.f=st.f.filter(x=>x!==b.dataset.x);irCompara(st);}};
-  $("#cmp-j").innerHTML=JANELAS.map(([k,l])=>'<button type="button" data-j="'+k+'" aria-pressed="'+(!st.de&&!st.ate&&st.j===k)+'">'+l+'</button>').join("");
+  $("#cmp-j").innerHTML=JANELAS.map(([k,l])=>'<button type="button" data-j="'+k+'" title="'+h(REF_DATA&&k!=="max"?"De "+dt(inicioJanela(REF_DATA,k))+" a "+dt(REF_DATA):k==="max"?"Desde o início do fundo mais novo da comparação":"")+'" aria-pressed="'+(!st.de&&!st.ate&&st.j===k)+'">'+l+'</button>').join("");
   $("#cmp-j").onclick=e=>{const b=e.target.closest("button");if(b){st.j=b.dataset.j;st.de="";st.ate="";irCompara(st);}};
   st.b=benchValidos(st.b);
   seletorBench($("#cmp-b"),st.b,l=>{st.b=l;irCompara(st);});
@@ -832,6 +834,30 @@ const UNIVERSOS=[["todos","Todos",0],["aberto","Aberto",2],["exclusivo","Exclusi
 const JAN_RK=[["1m","1M"],["ano","No ano"],["12","12M"],["24","24M"],["36","36M"]];
 const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["rdia","Dia"],["ret","Ret"],["pcdi","% CDI"],["vol","Vol"],["sharpe","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["cap12","Capt. líq. 12M"],["gestor","Gestor","l"],["inicio","Início"]];
 const PREF={ret:"r",pcdi:"c",vol:"v",sharpe:"s"};
+// Dica (ao passar o mouse) com as datas exatas de cada janela, a partir da data de referência do site
+let REF_DATA=null;
+const somaDias=(d,n)=>new Date(Date.parse(d+"T00:00:00Z")+n*864e5).toISOString().slice(0,10);
+function iniJanRk(k,ref){
+  if(k==="ano")return(+ref.slice(0,4)-1)+"-12-31";
+  const m={"1m":1,"12":12,"24":24,"36":36}[k];if(!m)return null;
+  const f=new Date(ref+"T00:00:00Z");let a=f.getUTCFullYear(),mm=f.getUTCMonth()-m;while(mm<0){a--;mm+=12;}
+  const ult=new Date(Date.UTC(a,mm+1,0)).getUTCDate();return new Date(Date.UTC(a,mm,Math.min(f.getUTCDate(),ult))).toISOString().slice(0,10);
+}
+function dicaJan(k,ref){
+  ref=ref||REF_DATA;if(!ref)return"";
+  if(k==="dia")return"Variação da cota no último dia útil disponível (dados até "+dt(ref)+")";
+  if(k==="cap12"){const a=somaDias(ref,0);let y=+a.slice(0,4),m=+a.slice(5,7)-11;while(m<1){m+=12;y--;}return"Captação líquida de "+String(m).padStart(2,"0")+"/"+y+" a "+a.slice(5,7)+"/"+a.slice(0,4)+" (mês atual até "+dt(ref)+")";}
+  const ini=iniJanRk(k,ref);if(!ini)return"";
+  return"Janela de "+dt(ini)+" a "+dt(ref)+". Base: última cota até "+dt(ini)+"; fim: última cota de cada fundo";
+}
+// Listados: janelas em dias corridos a partir do último pregão
+function dicaListado(k,ref){
+  if(!ref)return"";
+  const ini={r1m:somaDias(ref,-30),r12:somaDias(ref,-365),rano:(+ref.slice(0,4)-1)+"-12-31"}[k];
+  if(k==="dia")return"Variação do preço no pregão de "+dt(ref)+" contra o pregão anterior";
+  if(k==="dy12")return"Rendimentos dos últimos 12 meses ÷ preço de "+dt(ref);
+  return ini?"Preço de "+dt(ini)+" (ou último pregão antes) a "+dt(ref):"";
+}
 const valorRk=(f,k,F)=>PREF[k]?f[PREF[k]+F.jan]:f[k];
 function filtrosPadrao(){return{q:"",u:"todos",classe:"",sit:"",serie:"todas",plmin:"",taxamax:"",ord:"pl",dir:-1,jan:"12",inv:true};}
 function ajustaF(F){if(!JAN_RK.some(j=>j[0]===F.jan))F.jan="12";const velho={ret12:"ret",vol12:"vol",sharpe12:"sharpe"};if(velho[F.ord])F.ord=velho[F.ord];if(F.ord==="situacao")F.ord="pl";if(typeof F.inv!=="boolean")F.inv=true;return F;}
@@ -867,7 +893,7 @@ function montarRanking(el,op){
       <div><div class="rotulo">Classe</div><select id="rk-c"><option value="">todas</option>${classes.map(c=>'<option>'+h(c)+'</option>').join("")}</select></div>
       <div><div class="rotulo">Situação</div><select id="rk-s"><option value="">todas</option>${sits.map(([s,n])=>'<option value="'+h(s)+'">'+h(s)+' ('+nf0.format(n)+')</option>').join("")}</select></div>
       <div${op.semSerie?" hidden":""}><div class="rotulo">Série</div><div class="seg" id="rk-se"><button type="button" data-s="todas">Todas</button><button type="button" data-s="diaria">Diária</button><button type="button" data-s="mensal">Só mensal</button></div></div>
-      <div><div class="rotulo">Janela</div><div class="seg" id="rk-j">${JAN_RK.map(j=>'<button type="button" data-j="'+j[0]+'">'+j[1]+'</button>').join("")}</div></div>
+      <div><div class="rotulo">Janela</div><div class="seg" id="rk-j">${JAN_RK.map(j=>'<button type="button" data-j="'+j[0]+'" title="'+h(dicaJan(j[0]))+'">'+j[1]+'</button>').join("")}</div></div>
       ${op.investidor?'<label class="canc" title="Esconde fundos exclusivos, masters e fundos com um único cotista (espelhos e veículos internos), que repetem o mesmo produto no ranking"><input type="checkbox" id="rk-inv"> Só fundos para investidor</label>':""}
       <div><div class="rotulo">PL mínimo (R$)</div><input type="number" id="rk-pl" min="0" step="1000000" placeholder="0" style="width:130px"></div>
       <div style="margin-left:auto;text-align:right"><div class="rotulo">População</div><div style="color:var(--ambar);font-size:16px;font-weight:700" id="rk-n">—</div><div class="fraco" style="font-size:10px" id="rk-nd"></div></div>
@@ -894,7 +920,7 @@ function montarRanking(el,op){
     $("#rk-n",el).textContent=nf0.format(filtrada.length);$("#rk-nd",el).textContent="fundos elegíveis no universo "+(UNIVERSOS.find(u=>u[0]===F.u)||UNIVERSOS[0])[1].toLowerCase();
     const vis=ord.slice(0,mostrar);
     const jl=(JAN_RK.find(j=>j[0]===F.jan)||[0,""])[1];
-    let t='<thead><tr>'+COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a||"")+'" data-k="'+k+'">'+l+(PREF[k]?" "+jl:"")+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
+    let t='<thead><tr>'+COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a||"")+'" data-k="'+k+'" title="'+h(k==="rdia"?dicaJan("dia"):PREF[k]?dicaJan(F.jan):k==="cap12"?dicaJan("cap12"):"")+'">'+l+(PREF[k]?" "+jl:"")+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
     for(const f of vis){
       t+='<tr class="'+(ehXP(f.id)?"xp":"")+'"><td><input type="checkbox" data-id="'+h(f.id)+'" aria-label="Selecionar '+h(f.nome)+'"'+(sel.has(f.id)?" checked":"")+'></td>'+
         '<td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+'</td>'+
@@ -1004,7 +1030,7 @@ async function telaListados(r){
     $("#ls-t").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.t===F.tipo));
     const l=filtra().sort((a,b)=>{const x=val(a,F.ord),y=val(b,F.ord);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return-1;return(typeof x==="string"?x.localeCompare(y,"pt-BR"):x-y)*F.dir;});
     $("#ls-n").textContent=nf0.format(l.length);
-    let t='<thead><tr>'+COLS_L.map(([k,lb,a])=>'<th class="ord '+(a||"")+'" data-k="'+k+'">'+lb+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
+    let t='<thead><tr>'+COLS_L.map(([k,lb,a])=>'<th class="ord '+(a||"")+'" data-k="'+k+'" title="'+h(dicaListado(k,L.ref))+'">'+lb+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
     for(const x of l.slice(0,mostrar))t+='<tr class="'+(ehXP(x.cnpj)?"xp":"")+'"><td class="l nome"><a href="#/listado/'+x.t+'" style="font-weight:700">'+x.t+'</a>'+tagXP(x.cnpj)+'</td><td class="l" style="white-space:normal;min-width:220px">'+h(x.nome)+'</td><td class="l fraco">'+h(x.tipo)+(x.segmento?" · "+h(x.segmento):"")+'</td><td>'+brlP(x.preco)+'</td>'+
       ["dia","r1m","rano","r12"].map(k=>'<td class="'+cls(x[k])+'">'+pct(x[k])+'</td>').join("")+'<td>'+pct(x.dy12,false)+'</td><td>'+num(x.pvp)+'</td><td>'+brl(x.liq21)+'</td><td>'+brl(x.pl)+'</td><td>'+(x.cotistas==null?"—":nf0.format(x.cotistas))+'</td></tr>';
     if(!l.length)t+='<tr><td colspan="'+COLS_L.length+'" class="l fraco">Nenhum papel com esses filtros.</td></tr>';
@@ -1038,7 +1064,7 @@ async function telaListado(r){
     ${k("Liquidez média/dia",brl(x.liq21))}${k("Negócios/dia",nf0.format(x.neg21||0))}${x.pl!=null?k("PL",brl(x.pl)):""}${x.cotistas!=null?k("Cotistas",nf0.format(x.cotistas)):""}
     ${x.gestor?k("Gestor",h(x.gestor)):""}${x.cnpj?k("CNPJ",cnpjFmt(x.cnpj)):""}${k("ISIN",h(x.isin||"—"))}
   </div></div></section>
-  <section class="painel"><div class="corpo"><div class="linha"><span class="rotulo">Janela</span><div class="seg" id="lt-j">${JANELAS.map(([kk,l])=>'<button type="button" data-j="'+kk+'" aria-pressed="'+(jan===kk)+'">'+l+'</button>').join("")}</div></div><div class="linha"><span class="rotulo">Benchmarks</span></div><div id="lt-b"></div></div></section>
+  <section class="painel"><div class="corpo"><div class="linha"><span class="rotulo">Janela</span><div class="seg" id="lt-j">${JANELAS.map(([kk,l])=>'<button type="button" data-j="'+kk+'" title="'+h(kk==="max"?"Todo o histórico desde 2016":"De "+dt(inicioJanela(fim,kk))+" a "+dt(fim))+'" aria-pressed="'+(jan===kk)+'">'+l+'</button>').join("")}</div></div><div class="linha"><span class="rotulo">Benchmarks</span></div><div id="lt-b"></div></div></section>
   <section class="painel"><div class="cab">Variação do preço · ${h((JANELAS.find(j=>j[0]===jan)||[0,""])[1])}<span class="linha">${botoesExportar("lt-x")}</span></div><div class="corpo"><div class="grafico" id="lt-g"></div><div id="lt-leg"></div></div></section>
   <section class="painel"><div class="cab">Preço de fechamento</div><div class="corpo"><div class="grafico" id="lt-p"></div></div></section>
   <section class="painel"><div class="cab">Volume financeiro por mês</div><div class="corpo"><div class="grafico" id="lt-v"></div></div></section>
@@ -1121,7 +1147,7 @@ async function telaFundo(r){
   let ibovMap=null;if(BENCH.ibov&&w.d.length){const b=recorta(BENCH.ibov.d,BENCH.ibov.v,w.d[0],fim);ibovMap=retornosDiarios(b.d,b.v);}
   const mt=metricas(w.d,w.v,ibovMap);
   const rot=de||ate?"período":(JANELAS.find(x=>x[0]===jan)||[0,""])[1];
-  c.innerHTML=`<section class="painel"><div class="corpo"><div class="linha"><span class="rotulo">Janela</span><div class="seg" id="fd-j">${JANELAS.map(([kk,l])=>'<button type="button" data-j="'+kk+'" aria-pressed="'+(!de&&!ate&&jan===kk)+'">'+l+'</button>').join("")}</div>
+  c.innerHTML=`<section class="painel"><div class="corpo"><div class="linha"><span class="rotulo">Janela</span><div class="seg" id="fd-j">${JANELAS.map(([kk,l])=>'<button type="button" data-j="'+kk+'" title="'+h(kk==="max"?"Desde a primeira cota ("+dt(f.d[0])+")":"De "+dt(inicioJanela(f.ultima,kk))+" a "+dt(f.ultima))+'" aria-pressed="'+(!de&&!ate&&jan===kk)+'">'+l+'</button>').join("")}</div>
     <span class="rotulo" style="margin-left:10px">Período</span><input type="date" id="fd-de" value="${h(de)}" aria-label="Data inicial"> <span class="fraco">→</span> <input type="date" id="fd-ate" value="${h(ate)}" aria-label="Data final"></div>
     <div class="linha"><span class="rotulo">Benchmarks</span><span class="fraco">${bq==null?"padrão: CDI"+(bsel.length>1?" e o indicador de desempenho do fundo":""):""}</span></div><div id="fd-b"></div></div></section>
   <section class="painel"><div class="cab">Histórico de cotas<span class="linha"><select id="fd-xp" aria-label="Período da exportação"><option value="janela">Período do gráfico (${h(w.d.length?dt(w.d[0])+" → "+dt(w.d[w.d.length-1]):"—")})</option><option value="tudo">Histórico completo (${h(dt(f.d[0])+" → "+dt(f.d[f.d.length-1]))})</option></select>${botoesExportar("fd-x")}</span></div></section>
@@ -1265,7 +1291,7 @@ temaBtn.onclick=()=>{const t=document.documentElement.getAttribute("data-tema")=
 meta().then(m=>{$("#st-dados").textContent="Dados até "+dt(m.ultima_cota);$("#st-series").textContent=nf0.format(m.fundos)+" fundos · "+nf0.format(m.com_serie_diaria||0)+" séries diárias";
   $("#rodape").textContent="Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI: "+(m.fontes&&m.fontes.cdi||"—")+" · Ibovespa: "+(m.fontes&&m.fontes.ibov||"—")+" · Demais benchmarks: B3 (Small Caps, IDIV, IFIX), ANBIMA (IMA, IRF-M, IHFA), Ipeadata (IPCA, IGP-M, dólar PTAX) e Yahoo Finance (S&P 500)"+" · Atualizado em "+new Date(m.atualizado).toLocaleString("pt-BR")+" · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento";}).catch(()=>{});
 let rz;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(rotaAtual==="compara"||rotaAtual==="fundo")render();},250);});
-acesso().then(carregaPeers).then(()=>{liberado=true;render();}).catch(e=>console.error(e));
+acesso().then(carregaPeers).then(()=>meta().then(m=>{REF_DATA=m.ultima_cota;}).catch(()=>{})).then(()=>{liberado=true;render();}).catch(e=>console.error(e));
 })();
 </script>
 </body>
