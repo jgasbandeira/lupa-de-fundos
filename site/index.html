@@ -590,7 +590,7 @@ function tabelaResumo(rows,op){
 
 // ================================================================ F1 PAINEL
 // Tabela de um peer group da casa, montada só com o índice (sem baixar a ficha de cada fundo).
-const PG_COLS=[["sel",""],["nome","Fundo","l"],["gestor","Gestor","l"],["rdia","Dia",1],["r1m","1M",1],["rano","No ano",1],["r12","12M",1],["r24","24M",1],["r36","36M",1],["c12","% CDI 12M",1],["v12","Vol 12M",0],["s12","Sharpe 12M",1],["pl","PL",0],["cap12","Capt. líq. 12M",0]];
+const PG_COLS=[["sel",""],["nome","Fundo","l"],["gestor","Gestor","l"],["rdia","Dia",1],["r1m","Mês",1],["rano","No ano",1],["r12","12M",1],["r24","24M",1],["r36","36M",1],["c12","% CDI 12M",1],["v12","Vol 12M",0],["s12","Sharpe 12M",1],["pl","PL",0],["cap12","Capt. líq. 12M",0]];
 function painelCasa(idx,pedido){
   let gid=pedido||ls("lupa-pg")||PEERS.grupos[0].id;if(!PEERS.grupos.some(g=>g.id===gid))gid=PEERS.grupos[0].id;
   const st={ord:"r12",dir:-1},sel=new Set();
@@ -831,7 +831,7 @@ function prazo(f){if(f.conversao==null&&f.pagamento==null)return"—";return"D+"
 // ================================================================ F2 RANKING (tabela reutilizada por F3/F4/F5)
 const UNIVERSOS=[["todos","Todos",0],["aberto","Aberto",2],["exclusivo","Exclusivo",4]];
 // Janelas do ranking: métricas pré-calculadas no índice (r = retorno, c = % do CDI, v = volatilidade, s = Sharpe)
-const JAN_RK=[["1m","1M"],["ano","No ano"],["12","12M"],["24","24M"],["36","36M"]];
+const JAN_RK=[["1m","Mês"],["ano","No ano"],["12","12M"],["24","24M"],["36","36M"]];
 const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["rdia","Dia"],["ret","Ret"],["pcdi","% CDI"],["vol","Vol"],["sharpe","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["cap12","Capt. líq. 12M"],["gestor","Gestor","l"],["inicio","Início"]];
 const PREF={ret:"r",pcdi:"c",vol:"v",sharpe:"s"};
 // Dica (ao passar o mouse) com as datas exatas de cada janela, a partir da data de referência do site
@@ -839,7 +839,8 @@ let REF_DATA=null;
 const somaDias=(d,n)=>new Date(Date.parse(d+"T00:00:00Z")+n*864e5).toISOString().slice(0,10);
 function iniJanRk(k,ref){
   if(k==="ano")return(+ref.slice(0,4)-1)+"-12-31";
-  const m={"1m":1,"12":12,"24":24,"36":36}[k];if(!m)return null;
+  if(k==="1m")return new Date(Date.UTC(+ref.slice(0,4),+ref.slice(5,7)-1,0)).toISOString().slice(0,10);
+  const m={"12":12,"24":24,"36":36}[k];if(!m)return null;
   const f=new Date(ref+"T00:00:00Z");let a=f.getUTCFullYear(),mm=f.getUTCMonth()-m;while(mm<0){a--;mm+=12;}
   const ult=new Date(Date.UTC(a,mm+1,0)).getUTCDate();return new Date(Date.UTC(a,mm,Math.min(f.getUTCDate(),ult))).toISOString().slice(0,10);
 }
@@ -853,7 +854,7 @@ function dicaJan(k,ref){
 // Listados: janelas em dias corridos a partir do último pregão
 function dicaListado(k,ref){
   if(!ref)return"";
-  const ini={r1m:somaDias(ref,-30),r12:somaDias(ref,-365),rano:(+ref.slice(0,4)-1)+"-12-31"}[k];
+  const ini={r1m:new Date(Date.UTC(+ref.slice(0,4),+ref.slice(5,7)-1,0)).toISOString().slice(0,10),r12:somaDias(ref,-365),rano:(+ref.slice(0,4)-1)+"-12-31"}[k];
   if(k==="dia")return"Variação do preço no pregão de "+dt(ref)+" contra o pregão anterior";
   if(k==="dy12")return"Rendimentos dos últimos 12 meses ÷ preço de "+dt(ref);
   return ini?"Preço de "+dt(ini)+" (ou último pregão antes) a "+dt(ref):"";
@@ -1004,7 +1005,7 @@ async function telaGrupos(r,campo){
 let LST=null;
 async function listadosIdx(){if(LST)return LST;const j=await getJson("listados.txt");LST={ref:j.ref,lista:j.lista,porT:new Map(j.lista.map(x=>[x.t,x]))};j.lista.forEach(x=>x.bn=norm(x.t+" "+x.nome));return LST;}
 const TIPOS_L=[["todos","Todos"],["FII","FII"],["Fiagro","Fiagro"],["FI-Infra","FI-Infra"],["ETF","ETF"]];
-const COLS_L=[["t","Ticker","l"],["nome","Nome","l"],["seg","Tipo · segmento","l"],["preco","Preço"],["dia","Dia"],["r1m","1M"],["rano","No ano"],["r12","12M"],["dy12","DY 12M"],["pvp","P/VP"],["liq21","Liquidez/dia"],["pl","PL"],["cotistas","Cotistas"]];
+const COLS_L=[["t","Ticker","l"],["nome","Nome","l"],["seg","Tipo · segmento","l"],["preco","Preço"],["dia","Dia"],["r1m","Mês"],["rano","No ano"],["r12","12M"],["dy12","DY 12M"],["pvp","P/VP"],["liq21","Liquidez/dia"],["pl","PL"],["cotistas","Cotistas"]];
 const brlP=x=>x==null||!isFinite(x)?"—":"R$ "+nf2.format(x);
 async function telaListados(r){
   const L=await listadosIdx();
@@ -1042,7 +1043,7 @@ async function telaListados(r){
   $("#ls-s").onchange=e=>{F.seg=e.target.value;muda();};$("#ls-l").onchange=e=>{F.liq=e.target.value;muda();};
   $("#ls-mb").onclick=()=>{mostrar+=300;desenha();};
   $("#ls-tab").onclick=e=>{const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;if(F.ord===k)F.dir*=-1;else{F.ord=k;F.dir=["t","nome","seg"].includes(k)?1:-1;}salva();desenha();}};
-  ligaExportar("ls-x",async()=>exportarCSV("listados_"+L.ref+".csv",["Ticker","Nome","Tipo","Segmento","CNPJ","Preço (R$)","Dia (%)","1M (%)","No ano (%)","12M (%)","24M (%)","36M (%)","Vol 12M (%)","DY 12M (%)","P/VP","Último rendimento (R$/cota)","VP por cota (R$)","Liquidez média 21d (R$)","Negócios/dia","PL (R$)","Cotistas"],
+  ligaExportar("ls-x",async()=>exportarCSV("listados_"+L.ref+".csv",["Ticker","Nome","Tipo","Segmento","CNPJ","Preço (R$)","Dia (%)","Mês (%)","No ano (%)","12M (%)","24M (%)","36M (%)","Vol 12M (%)","DY 12M (%)","P/VP","Último rendimento (R$/cota)","VP por cota (R$)","Liquidez média 21d (R$)","Negócios/dia","PL (R$)","Cotistas"],
     filtra().map(x=>[x.t,x.nome,x.tipo,x.segmento||"",x.cnpj?cnpjFmt(x.cnpj):"",x.preco,...["dia","r1m","rano","r12","r24","r36","vol12","dy12"].map(k=>x[k]==null?null:Math.round(x[k]*1e6)/1e4),x.pvp,x.ult_rend??null,x.vpc??null,x.liq21,x.neg21,x.pl??null,x.cotistas??null])));
   desenha();
 }

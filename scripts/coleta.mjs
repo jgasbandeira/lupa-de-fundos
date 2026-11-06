@@ -766,7 +766,7 @@ async function listados(refDia, saida) {
     let vol = null;
     { const i0 = Math.max(1, n - 252); const rs = []; for (let i = i0; i < n; i++) rs.push(c[i] / c[i - 1] - 1); if (rs.length > 60) { const m = rs.reduce((a, b) => a + b, 0) / rs.length; vol = Math.sqrt(rs.reduce((a, b) => a + (b - m) ** 2, 0) / (rs.length - 1)) * Math.sqrt(252); } }
     const info = { t, nome: nomeLongo, tipo, cnpj, isin: x.isin, preco: +ult.toPrecision(8), data: iso(dUlt), dia: r4(n > 1 ? ult / c[n - 2] - 1 : null),
-      r1m: r4(ret(em(30))), rano: r4(ret(ini(fimAno))), r12: r4(ret(em(365))), r24: r4(ret(em(730))), r36: r4(ret(em(1095))), vol12: r4(vol),
+      r1m: r4(ret(ini(Math.round(Date.UTC(new Date(dUlt * DIA_MS).getUTCFullYear(), new Date(dUlt * DIA_MS).getUTCMonth(), 0) / DIA_MS)))), rano: r4(ret(ini(fimAno))), r12: r4(ret(em(365))), r24: r4(ret(em(730))), r36: r4(ret(em(1095))), vol12: r4(vol),
       liq21: Math.round(media(x.v, 21) || 0), liq252: Math.round(media(x.v, 252) || 0), neg21: Math.round(media(x.n, 21) || 0) };
     // Dados mensais da CVM (FII e Fiagro): VP por cota, DY mensal (sobre o VP), PL, cotistas, segmento
     let mensalOut = null;
@@ -1154,10 +1154,12 @@ function serieSemanal(d, p, n) {
 
 // Métricas por janela para o ranking. A janela termina na data de referência do site e começa no mesmo dia
 // N meses antes (no ano: 31/12 do ano anterior). Base = última cota até o início da janela (no máximo 10 dias antes).
-const JANELAS_RK = [["1m", 1], ["ano", 0], ["12", 12], ["24", 24], ["36", 36]];
+// "1m" = mês corrente (desde o último dia do mês anterior), "ano" = desde 31/12 do ano anterior
+const JANELAS_RK = [["1m", "mes"], ["ano", 0], ["12", 12], ["24", 24], ["36", 36]];
 function inicioJanelaDia(refDia, meses) {
   const r = new Date(refDia * DIA_MS);
   if (meses === 0) return dia(`${r.getUTCFullYear() - 1}-12-31`);
+  if (meses === "mes") return Math.round(Date.UTC(r.getUTCFullYear(), r.getUTCMonth(), 0) / DIA_MS);
   let a = r.getUTCFullYear(), m = r.getUTCMonth() - meses;
   while (m < 0) { m += 12; a--; }
   const ult = new Date(Date.UTC(a, m + 1, 0)).getUTCDate();
@@ -1171,7 +1173,7 @@ function metricasJanela(f, fatorCdi, refDia, meses) {
   if (d[0] > ini) return null;
   while (lo < hi) { const m = (lo + hi + 1) >> 1; if (d[m] <= ini) lo = m; else hi = m - 1; }
   const i0 = lo, i1 = n - 1;
-  if (ini - d[i0] > 10 || i1 - i0 < 5) return null;
+  if (ini - d[i0] > 10 || i1 - i0 < (meses === "mes" ? 1 : 5)) return null;
   const ret = q[i1] / q[i0] - 1, k = i1 - i0;
   let s = 0, s2 = 0;
   for (let i = i0 + 1; i <= i1; i++) { const r = q[i] / q[i - 1] - 1; s += r; s2 += r * r; }
