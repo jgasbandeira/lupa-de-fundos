@@ -612,22 +612,22 @@ async function resumoFundo(id){
 function tabelaResumo(rows,op){
   op=op||{};
   const col=x=>'<td class="'+cls(x)+'">'+pct(x)+'</td>';
-  let t='<thead><tr>'+(op.selecao?'<th></th>':'')+'<th class="l">Fundo</th><th class="l">Classe</th><th>Última cota</th><th>Dia</th><th>MTD</th><th>YTD</th><th>12M</th><th>% CDI 12M</th><th>Vol 12M</th><th>PL</th><th>Capt. líq. 12M</th>'+(op.remover?'<th></th>':'')+'</tr></thead><tbody>';
+  let t='<thead><tr>'+(op.selecao?'<th></th>':'')+'<th class="l">Fundo</th><th class="l">Classe</th><th>Última cota</th><th>Dia</th><th>MTD</th><th>YTD</th><th>12M</th><th>Vol 12M</th><th>PL</th><th>Capt. líq. 12M</th>'+(op.remover?'<th></th>':'')+'</tr></thead><tbody>';
   for(const r of rows){
     t+='<tr class="'+(ehXP(r.id)?"xp":"")+'">'+(op.selecao?'<td><input type="checkbox" data-id="'+h(r.id)+'" aria-label="Selecionar '+h(r.nome)+'"></td>':'')+
       '<td class="nome l">'+estrela(r.id)+(r.existe?'<a href="#/fundo/'+encodeURIComponent(r.id)+'" title="'+h(r.nome)+'">'+h(r.nome)+'</a>'+tagXP(r.id):h(r.nome)+' <span class="fraco">(não encontrado)</span>')+(r.mensal?'<span class="tag">mensal</span>':"")+(r.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td>'+
       '<td class="l">'+h(r.classe)+'</td><td>'+(r.ultima?(r.mensal?r.ultima.slice(5,7)+"/"+r.ultima.slice(0,4):dt(r.ultima)):"—")+'</td>'+
       (r.mensal?'<td>—</td>':col(r.dia))+col(r.r1m)+col(r.ano)+col(r.r12)+
-      '<td>'+(r.pcdi==null||!isFinite(r.pcdi)?"—":nf0.format(r.pcdi*100).replace("-","−")+"%")+'</td><td>'+pct(r.vol,false)+'</td><td>'+brl(r.pl)+'</td><td class="'+cls(r.cap12)+'">'+brlS(r.cap12)+'</td>'+
+      '<td>'+pct(r.vol,false)+'</td><td>'+brl(r.pl)+'</td><td class="'+cls(r.cap12)+'">'+brlS(r.cap12)+'</td>'+
       (op.remover?'<td><button type="button" class="chip-x" data-rm="'+h(r.id)+'" aria-label="Tirar do peer group" title="Tirar do peer group" style="border:0;background:none;color:var(--neg);cursor:pointer">×</button></td>':'')+'</tr>';
   }
-  if(!rows.length)t+='<tr><td colspan="13" class="l fraco">'+(op.vazio||"Nenhum fundo.")+'</td></tr>';
+  if(!rows.length)t+='<tr><td colspan="12" class="l fraco">'+(op.vazio||"Nenhum fundo.")+'</td></tr>';
   return t+'</tbody>';
 }
 
 // ================================================================ F1 PAINEL
 // Tabela de um peer group da casa, montada só com o índice (sem baixar a ficha de cada fundo).
-const PG_COLS=[["sel",""],["nome","Fundo","l"],["gestor","Gestor","l"],["rdia","Dia",1],["r1m","MTD",1],["rano","YTD",1],["r12","12M",1],["r24","24M",1],["r36","36M",1],["c12","% CDI 12M",1],["v12","Vol 12M",0],["s12","Sharpe 12M",1],["pl","PL",0],["cap12","Capt. líq. 12M",0]];
+const PG_COLS=[["sel",""],["nome","Fundo","l"],["gestor","Gestor","l"],["rdia","Dia",1],["r1m","MTD",1],["rano","YTD",1],["r12","12M",1],["r24","24M",1],["r36","36M",1],["v12","Vol 12M",0],["s12","Sharpe 12M",1],["pl","PL",0],["cap12","Capt. líq. 12M",0]];
 function painelCasa(idx,pedido){
   let gid=pedido||ls("lupa-pg")||PEERS.grupos[0].id;if(!PEERS.grupos.some(g=>g.id===gid))gid=PEERS.grupos[0].id;
   const st={ord:"r12",dir:-1},sel=new Set();
