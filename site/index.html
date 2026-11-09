@@ -613,7 +613,7 @@ async function resumoFundo(id){
 function tabelaResumo(rows,op){
   op=op||{};
   const col=x=>'<td class="'+cls(x)+'">'+pct(x)+'</td>';
-  let t='<thead><tr>'+(op.selecao?'<th></th>':'')+'<th class="l">Fundo</th><th class="l">Classe</th><th>Última cota</th><th>Dia</th><th>MTD</th><th>No ano</th><th>12M</th><th>% CDI 12M</th><th>Vol 12M</th><th>PL</th><th>Capt. líq. 12M</th>'+(op.remover?'<th></th>':'')+'</tr></thead><tbody>';
+  let t='<thead><tr>'+(op.selecao?'<th></th>':'')+'<th class="l">Fundo</th><th class="l">Classe</th><th>Última cota</th><th>Dia</th><th>MTD</th><th>YTD</th><th>12M</th><th>% CDI 12M</th><th>Vol 12M</th><th>PL</th><th>Capt. líq. 12M</th>'+(op.remover?'<th></th>':'')+'</tr></thead><tbody>';
   for(const r of rows){
     t+='<tr class="'+(ehXP(r.id)?"xp":"")+'">'+(op.selecao?'<td><input type="checkbox" data-id="'+h(r.id)+'" aria-label="Selecionar '+h(r.nome)+'"></td>':'')+
       '<td class="nome l">'+estrela(r.id)+(r.existe?'<a href="#/fundo/'+encodeURIComponent(r.id)+'" title="'+h(r.nome)+'">'+h(r.nome)+'</a>'+tagXP(r.id):h(r.nome)+' <span class="fraco">(não encontrado)</span>')+(r.mensal?'<span class="tag">mensal</span>':"")+(r.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td>'+
@@ -628,7 +628,7 @@ function tabelaResumo(rows,op){
 
 // ================================================================ F1 PAINEL
 // Tabela de um peer group da casa, montada só com o índice (sem baixar a ficha de cada fundo).
-const PG_COLS=[["sel",""],["nome","Fundo","l"],["gestor","Gestor","l"],["rdia","Dia",1],["r1m","MTD",1],["rano","No ano",1],["r12","12M",1],["r24","24M",1],["r36","36M",1],["c12","% CDI 12M",1],["v12","Vol 12M",0],["s12","Sharpe 12M",1],["pl","PL",0],["cap12","Capt. líq. 12M",0]];
+const PG_COLS=[["sel",""],["nome","Fundo","l"],["gestor","Gestor","l"],["rdia","Dia",1],["r1m","MTD",1],["rano","YTD",1],["r12","12M",1],["r24","24M",1],["r36","36M",1],["c12","% CDI 12M",1],["v12","Vol 12M",0],["s12","Sharpe 12M",1],["pl","PL",0],["cap12","Capt. líq. 12M",0]];
 function painelCasa(idx,pedido){
   let gid=pedido||ls("lupa-pg")||PEERS.grupos[0].id;if(!PEERS.grupos.some(g=>g.id===gid))gid=PEERS.grupos[0].id;
   const st={ord:"r12",dir:-1},sel=new Set();
@@ -869,7 +869,7 @@ function prazo(f){if(f.conversao==null&&f.pagamento==null)return"—";return"D+"
 // ================================================================ F2 RANKING (tabela reutilizada por F3/F4/F5)
 const UNIVERSOS=[["todos","Todos",0],["aberto","Aberto",2],["exclusivo","Exclusivo",4]];
 // Janelas do ranking: métricas pré-calculadas no índice (r = retorno, c = % do CDI, v = volatilidade, s = Sharpe)
-const JAN_RK=[["1m","MTD"],["ano","No ano"],["12","12M"],["24","24M"],["36","36M"]];
+const JAN_RK=[["1m","MTD"],["ano","YTD"],["12","12M"],["24","24M"],["36","36M"]];
 const COLS=[["sel",""],["nome","Fundo","l"],["classe","Classe","l"],["rdia","Dia"],["ret","Ret"],["pcdi","% CDI"],["vol","Vol"],["sharpe","Sharpe"],["taxa_adm","Taxa adm"],["pl","PL"],["cap12","Capt. líq. 12M"],["gestor","Gestor","l"],["inicio","Início"]];
 const PREF={ret:"r",pcdi:"c",vol:"v",sharpe:"s"};
 // Dica (ao passar o mouse) com as datas exatas de cada janela, a partir da data de referência do site
@@ -1043,7 +1043,7 @@ async function telaGrupos(r,campo){
 let LST=null;
 async function listadosIdx(){if(LST)return LST;const j=await getJson("listados.txt");LST={ref:j.ref,lista:j.lista,porT:new Map(j.lista.map(x=>[x.t,x]))};j.lista.forEach(x=>x.bn=norm(x.t+" "+x.nome));return LST;}
 const TIPOS_L=[["todos","Todos"],["FII","FII"],["Fiagro","Fiagro"],["FI-Infra","FI-Infra"],["ETF","ETF"]];
-const COLS_L=[["t","Ticker","l"],["nome","Nome","l"],["seg","Tipo · segmento","l"],["preco","Preço"],["dia","Dia"],["r1m","MTD"],["rano","No ano"],["r12","12M"],["dy12","DY 12M"],["pvp","P/VP"],["liq21","Liquidez/dia"],["pl","PL"],["cotistas","Cotistas"]];
+const COLS_L=[["t","Ticker","l"],["nome","Nome","l"],["seg","Tipo · segmento","l"],["preco","Preço"],["dia","Dia"],["r1m","MTD"],["rano","YTD"],["r12","12M"],["dy12","DY 12M"],["pvp","P/VP"],["liq21","Liquidez/dia"],["pl","PL"],["cotistas","Cotistas"]];
 const brlP=x=>x==null||!isFinite(x)?"—":"R$ "+nf2.format(x);
 async function telaListados(r){
   const L=await listadosIdx();
@@ -1081,7 +1081,7 @@ async function telaListados(r){
   $("#ls-s").onchange=e=>{F.seg=e.target.value;muda();};$("#ls-l").onchange=e=>{F.liq=e.target.value;muda();};
   $("#ls-mb").onclick=()=>{mostrar+=300;desenha();};
   $("#ls-tab").onclick=e=>{const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;if(F.ord===k)F.dir*=-1;else{F.ord=k;F.dir=["t","nome","seg"].includes(k)?1:-1;}salva();desenha();}};
-  ligaExportar("ls-x",async()=>exportarCSV("listados_"+L.ref+".csv",["Ticker","Nome","Tipo","Segmento","CNPJ","Preço (R$)","Dia (%)","MTD (%)","No ano (%)","12M (%)","24M (%)","36M (%)","Vol 12M (%)","DY 12M (%)","P/VP","Último rendimento (R$/cota)","VP por cota (R$)","Liquidez média 21d (R$)","Negócios/dia","PL (R$)","Cotistas"],
+  ligaExportar("ls-x",async()=>exportarCSV("listados_"+L.ref+".csv",["Ticker","Nome","Tipo","Segmento","CNPJ","Preço (R$)","Dia (%)","MTD (%)","YTD (%)","12M (%)","24M (%)","36M (%)","Vol 12M (%)","DY 12M (%)","P/VP","Último rendimento (R$/cota)","VP por cota (R$)","Liquidez média 21d (R$)","Negócios/dia","PL (R$)","Cotistas"],
     filtra().map(x=>[x.t,x.nome,x.tipo,x.segmento||"",x.cnpj?cnpjFmt(x.cnpj):"",x.preco,...["dia","r1m","rano","r12","r24","r36","vol12","dy12"].map(k=>x[k]==null?null:Math.round(x[k]*1e6)/1e4),x.pvp,x.ult_rend??null,x.vpc??null,x.liq21,x.neg21,x.pl??null,x.cotistas??null])));
   desenha();
 }
@@ -1149,7 +1149,7 @@ async function telaFundo(r){
     <div class="meta"><span>CNPJ <b>${cnpjFmt(f.cnpj)}</b></span><span>Classe <b>${h(f.classe||f.tipo||"—")}</b></span>${f.gestor?'<span>Gestor <b>'+h(f.gestor)+'</b></span>':""}<span>Situação <b>${f.ativo?"ativo":/funcionamento/i.test(f.situacao||"")?"sem cota recente":h((f.situacao||"encerrado").toLowerCase())}</b></span><span>Início <b>${dt(f.inicio)}</b></span>${f.sub?'<span>Subclasse <b>'+h(f.sub)+'</b></span>':""}<span>Série na base <b>${f.primeira?dt(f.primeira)+" → "+dt(f.ultima):"—"}</b></span>${f.pregoes?'<span>Pregões <b>'+nf0.format(f.pregoes)+'</b></span>':""}</div></div>
     <div class="tiles">${(()=>{const x=fx||{};const tl=(rot,v,c,sub)=>'<div class="tile"><div class="k">'+rot+'</div><div class="v'+(c?" "+c:"")+'">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':"")+'</div>';
       const pc=x.c12==null||!isFinite(x.c12)?"—":nf0.format(x.c12*100).replace("-","−")+"%";
-      return tl("Rentabilidade 12M",pct(x.r12),cls(x.r12))+tl("% do CDI 12M",pc)+tl("No ano",pct(x.rano),cls(x.rano))+tl("Volatilidade 12M",pct(x.v12,false))+tl("Sharpe 12M",num(x.s12))+tl("Patrimônio",brl(f.pl))+tl("Captação líq. 12M",brlS(x.cap12),cls(x.cap12))+tl("Taxa de adm.",f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"% a.a.");})()}</div></section>
+      return tl("Rentabilidade 12M",pct(x.r12),cls(x.r12))+tl("% do CDI 12M",pc)+tl("YTD",pct(x.rano),cls(x.rano))+tl("Volatilidade 12M",pct(x.v12,false))+tl("Sharpe 12M",num(x.s12))+tl("Patrimônio",brl(f.pl))+tl("Captação líq. 12M",brlS(x.cap12),cls(x.cap12))+tl("Taxa de adm.",f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"% a.a.");})()}</div></section>
   <div class="abas">${["desempenho","carteira","cadastro"].map(a=>'<button type="button" aria-pressed="'+(a===aba)+'" data-a="'+a+'">'+a+'</button>').join("")}</div>
   <div id="fd-c" style="display:grid;gap:10px"></div>`;
   $("#fd-cmp").onclick=e=>{e.preventDefault();adicionarComparar([f.id]);};
@@ -1289,7 +1289,7 @@ function desempenhoMensal(c,f){
   const dy12=M.dy?M.dy.slice(-12).reduce((s,x)=>s+(x||0),0):null;
   const cdi12=r12!=null?retCDI(isoDia(Math.round(Date.parse(M.m[Math.max(0,ult-12)]+"-28T00:00:00Z")/864e5)),isoDia(Math.round(Date.parse(M.m[ult]+"-28T00:00:00Z")/864e5))):null;
   c.innerHTML=`<section class="painel"><div class="cab">Desempenho mensal<span class="sub">informe mensal da CVM · último mês ${h(M.m[ult].slice(5,7)+"/"+M.m[ult].slice(0,4))}</span></div><div class="corpo"><div class="kv">
-      ${k("Retorno 12M",'<span class="'+cls(r12)+'">'+pct(r12)+'</span>')}${k("Retorno no ano",'<span class="'+cls(okAno?rAno-1:null)+'">'+(okAno?pct(rAno-1):"—")+'</span>')}${k("% do CDI (12M)",r12!=null&&cdi12?nf0.format(r12/cdi12*100)+"% do CDI":"—")}
+      ${k("Retorno 12M",'<span class="'+cls(r12)+'">'+pct(r12)+'</span>')}${k("Retorno YTD",'<span class="'+cls(okAno?rAno-1:null)+'">'+(okAno?pct(rAno-1):"—")+'</span>')}${k("% do CDI (12M)",r12!=null&&cdi12?nf0.format(r12/cdi12*100)+"% do CDI":"—")}
       ${M.dy?k("Dividend yield 12M",pct(dy12,false)):""}${k("PL",brl(f.pl))}${k("Cotistas",f.cotistas==null?"—":nf0.format(f.cotistas))}
       ${M.vpc?k("Valor patrimonial da cota",M.vpc[ult]==null?"—":"R$ "+nf2.format(M.vpc[ult])):""}${f.segmento?k("Segmento",h(f.segmento)):""}${f.mandato?k("Mandato",h(f.mandato)):""}${f.isin?k("ISIN",h(f.isin)):""}
     </div><details class="nota"><summary>Como ler estes números</summary>${f.tipo==="FIDC"?"Rentabilidade da série de maior patrimônio (normalmente a sênior), informada pelo administrador.":"Rentabilidade efetiva do mês informada pelo administrador (inclui rendimentos distribuídos)."}</details></div></section>
