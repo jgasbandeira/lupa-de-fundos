@@ -6,180 +6,215 @@
 <title>Comparador de Fundos</title>
 <meta name="description" content="Compare fundos de investimento brasileiros com dados públicos da CVM: rentabilidade, risco, ranking, gestores, administradores e ficha completa.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
-/* Terminal: fundo preto, monoespaçada, âmbar para destaque e ciano para dados */
+/* Visual corporativo: fundo claro, cartões brancos, azul-marinho como cor de destaque */
 :root{
-  color-scheme:dark;
-  --fundo:#000;--sup:#0b0d10;--sup2:#14181d;--borda:#2a3038;--borda2:#3d4652;
-  --ambar:#ffa028;--ambar2:#8a5f20;--texto:#e8e6e3;--fraco:#8b939e;--ciano:#35d6ed;
-  --pos:#35d67f;--neg:#ff5c5c;--aviso:#ffc93c;--bench:#8b939e;--xpc:#f5c518;--xpbg:rgba(245,197,24,.10);
-  --s1:#35d6ed;--s2:#ffa028;--s3:#7ee787;--s4:#ff7bd5;--s5:#a5a5ff;--s6:#ffe066;--s7:#ff9f6e;--s8:#6ee7d7;
-  --mono:"JetBrains Mono","IBM Plex Mono","SF Mono",Menlo,Consolas,monospace;
-}
-:root[data-tema="claro"]{
   color-scheme:light;
-  --fundo:#fff;--sup:#f5f6f8;--sup2:#eceef1;--borda:#d4d8de;--borda2:#aeb4bd;
-  --ambar:#9a5b00;--ambar2:#c9a878;--texto:#14171c;--fraco:#5b6472;--ciano:#0b6b8a;
-  --pos:#0b6b4f;--neg:#a3231d;--aviso:#8a5a00;--bench:#6b7280;--xpc:#7a5c00;--xpbg:rgba(245,197,24,.16);
-  --s1:#0b6b8a;--s2:#b45309;--s3:#15803d;--s4:#be185d;--s5:#4338ca;--s6:#a16207;--s7:#9a3412;--s8:#0f766e;
+  --fundo:#f3f5f8;--sup:#fff;--sup2:#f2f5f9;--borda:#e2e6ec;--borda2:#c9d0da;
+  --ambar:#1d4f91;--ambar2:#dbe6f5;--acento-txt:#fff;--texto:#141a23;--fraco:#677283;--ciano:#1d4f91;
+  --pos:#0d7a4c;--neg:#c22d32;--aviso:#9a6400;--bench:#8a94a3;--xpc:#7a5900;--xpbg:#fff7d6;
+  --s1:#1d4f91;--s2:#e07b2e;--s3:#1f9d74;--s4:#c23f74;--s5:#7457c2;--s6:#2f9fcf;--s7:#a5821c;--s8:#5f6b7a;
+  --sombra:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.04);
+  --raio:10px;
+  --mono:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+}
+:root[data-tema="escuro"]{
+  color-scheme:dark;
+  --fundo:#0e131a;--sup:#161c25;--sup2:#1d2530;--borda:#262f3c;--borda2:#37424f;
+  --ambar:#7aaeff;--ambar2:#1f3557;--acento-txt:#0b1220;--texto:#e7ebf1;--fraco:#97a2b2;--ciano:#7aaeff;
+  --pos:#43cf8f;--neg:#ff7272;--aviso:#f0b54a;--bench:#8b95a5;--xpc:#f5c518;--xpbg:rgba(245,197,24,.09);
+  --s1:#7aaeff;--s2:#f59a52;--s3:#4fd1a1;--s4:#f07aa8;--s5:#a991f2;--s6:#5cc7f0;--s7:#e0c25a;--s8:#a3adbb;
+  --sombra:none;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{margin:0;background:var(--fundo);color:var(--texto);font-family:var(--mono);font-size:13px;line-height:1.45;font-variant-numeric:tabular-nums}
+html,body{margin:0;background:var(--fundo);color:var(--texto);font-family:var(--mono);font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 body{min-height:100vh;display:flex;flex-direction:column}
 a{color:inherit;text-decoration:none}
 button,input,select{font:inherit;color:inherit}
-:focus-visible{outline:1px solid var(--ambar);outline-offset:1px}
-.wrap{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+:focus-visible{outline:2px solid var(--ambar);outline-offset:2px;border-radius:4px}
+.wrap{padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));width:100%;max-width:1480px;margin-inline:auto}
 
 /* topo */
 .topo{background:var(--sup);border-bottom:1px solid var(--borda);position:sticky;top:0;z-index:20}
-.topo .linha{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-block:7px}
+.topo .linha{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding-block:0;min-height:56px}
 body.bloqueado #nav,body.bloqueado .status .canc{visibility:hidden}
 body.bloqueado #sair{display:none}
 #sair:not([hidden])+#tema{margin-left:6px}
-.login{max-width:420px;margin:40px auto;width:100%}
+.login{max-width:420px;margin:48px auto;width:100%}
 .login form{display:grid;gap:10px}
-.login input[type=password]{border:1px solid var(--borda2);background:var(--fundo);padding:8px;font:inherit;color:var(--texto)}
-.logo{color:var(--ambar);font-weight:700;letter-spacing:.06em;margin-right:6px;white-space:nowrap}
-.logo b{color:var(--texto);font-weight:700}
-.nav{display:flex;gap:4px;flex-wrap:wrap}
-.nav a{border:1px solid var(--borda2);padding:3px 8px;font-size:11px;letter-spacing:.06em;color:var(--ambar);text-transform:uppercase;white-space:nowrap}
-.nav a:hover{background:var(--sup2)}
-.nav a.on{background:var(--ambar);color:#000;border-color:var(--ambar)}
-:root[data-tema="claro"] .nav a.on{color:#fff}
-.tema{margin-left:auto;border:1px solid var(--borda2);background:var(--fundo);padding:3px 8px;font-size:11px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase}
-.status{display:flex;gap:10px;align-items:center;font-size:11px;color:var(--fraco);padding-block:4px;border-top:1px solid var(--borda);text-transform:uppercase;letter-spacing:.03em;flex-wrap:wrap}
-.status .fonte{color:var(--ambar);font-weight:700}
+.login input[type=password]{border:1px solid var(--borda2);background:var(--sup);padding:9px 12px;border-radius:8px;font:inherit;color:var(--texto)}
+.logo{display:inline-flex;align-items:center;gap:9px;color:var(--texto);font-weight:700;font-size:15px;letter-spacing:-.01em;white-space:nowrap}
+.logo::before{content:"";width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--ambar) 0 50%,color-mix(in srgb,var(--ambar) 55%,#fff) 50%)}
+.logo b{font-weight:400;color:var(--fraco)}
+.nav{display:flex;gap:2px;flex-wrap:wrap;align-self:stretch}
+.nav a{display:inline-flex;align-items:center;gap:6px;padding:0 12px;font-size:14px;font-weight:500;color:var(--fraco);white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
+.nav a kbd{font:inherit;font-size:10px;color:var(--fraco);border:1px solid var(--borda);border-radius:4px;padding:0 4px;line-height:15px;opacity:.8}
+.nav a:hover{color:var(--texto)}
+.nav a.on{color:var(--ambar);border-bottom-color:var(--ambar)}
+.tema{margin-left:auto;border:1px solid var(--borda2);background:var(--sup);padding:5px 12px;border-radius:8px;font-size:13px;cursor:pointer;color:var(--texto)}
+.tema:hover{background:var(--sup2)}
+.status{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--fraco);padding-block:6px;border-top:1px solid var(--borda);flex-wrap:wrap}
+.status .fonte{color:var(--fraco);font-weight:600}
 .status .dir{margin-left:auto}
 .canc{display:inline-flex;align-items:center;gap:5px;cursor:pointer;color:var(--texto);margin-left:8px}
 .canc input{accent-color:var(--ambar);margin:0}
 
-main{flex:1;display:grid;gap:10px;padding-block:10px;align-content:start}
-.painel{background:var(--sup);border:1px solid var(--borda);min-width:0}
-.painel>.cab{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--borda);font-size:11px;font-weight:700;color:var(--ambar);letter-spacing:.06em;text-transform:uppercase;flex-wrap:wrap}
-.painel>.cab .sub{color:var(--fraco);font-weight:400}
-.painel>.corpo{padding:10px;display:grid;gap:10px}
-.painel.aviso>.cab{color:var(--aviso)}
-.rotulo{font-size:11px;font-weight:700;color:var(--ambar);letter-spacing:.06em;text-transform:uppercase}
+main{flex:1;display:grid;gap:16px;padding-block:20px;align-content:start}
+.painel{background:var(--sup);border:1px solid var(--borda);border-radius:var(--raio);box-shadow:var(--sombra);min-width:0;overflow:hidden}
+.painel>.cab{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--borda);font-size:15px;font-weight:600;color:var(--texto);flex-wrap:wrap;letter-spacing:-.005em}
+.painel>.cab .sub{color:var(--fraco);font-weight:400;font-size:13px}
+.painel>.corpo{padding:16px;display:grid;gap:14px}
+.painel.aviso{border-color:color-mix(in srgb,var(--aviso) 35%,var(--borda))}
+.painel.aviso>.cab{color:var(--aviso);background:color-mix(in srgb,var(--aviso) 7%,var(--sup))}
+.painel .painel{box-shadow:none}
+#pg-corpo .corpo{padding:12px 16px;display:grid;gap:12px}
+.rotulo{font-size:13px;font-weight:500;color:var(--fraco)}
 .fraco{color:var(--fraco)}
 .linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .pos{color:var(--pos)}.neg{color:var(--neg)}
+details.nota{font-size:13px;color:var(--fraco)}
+details.nota summary{cursor:pointer;color:var(--ambar);font-weight:500;width:max-content}
+details.nota[open] summary{margin-bottom:6px}
 
 /* busca */
 .busca{position:relative}
-.prompt{display:flex;align-items:center;border:1px solid var(--borda2);background:var(--fundo)}
-.prompt::before{content:">";color:var(--ambar);padding:0 8px;font-weight:700}
-.prompt input{flex:1;min-width:0;border:0;background:transparent;padding:6px 8px 6px 0;outline:0}
-.prompt input::placeholder{color:var(--fraco);text-transform:uppercase}
-.drop{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:30;background:var(--sup);border:1px solid var(--borda2);max-height:360px;overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.5)}
-.drop button{display:grid;grid-template-columns:1fr auto auto;gap:12px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--borda);background:transparent;padding:6px 8px;cursor:pointer;font-size:12px}
+.prompt{display:flex;align-items:center;border:1px solid var(--borda2);background:var(--sup);border-radius:8px}
+.prompt:focus-within{border-color:var(--ambar);box-shadow:0 0 0 3px var(--ambar2)}
+.prompt::before{content:"";width:16px;height:16px;margin:0 4px 0 12px;flex:none;background:var(--fraco);-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") center/contain no-repeat}
+.prompt input{flex:1;min-width:0;border:0;background:transparent;padding:9px 12px 9px 6px;outline:0}
+.prompt input::placeholder{color:var(--fraco)}
+.drop{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;background:var(--sup);border:1px solid var(--borda);border-radius:8px;max-height:380px;overflow:auto;box-shadow:0 12px 32px rgba(16,24,40,.14)}
+.drop button{display:grid;grid-template-columns:1fr auto auto;gap:12px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--borda);background:transparent;padding:8px 12px;cursor:pointer;font-size:13px}
 .drop button:hover,.drop button.on{background:var(--sup2)}
-.drop .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:uppercase}
+.drop .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drop .c{color:var(--fraco)}
-.drop .t{color:var(--ambar);min-width:110px;text-align:right;text-transform:uppercase;font-size:11px}
-.drop .vazio{padding:8px;color:var(--fraco)}
+.drop .t{color:var(--fraco);min-width:110px;text-align:right;font-size:12px}
+.drop .vazio{padding:10px 12px;color:var(--fraco)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
-.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--borda2);background:var(--fundo);padding:2px 4px 2px 6px;font-size:11px;max-width:100%;text-transform:uppercase}
-.chip i{width:8px;height:8px;flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--borda);background:var(--sup2);padding:3px 4px 3px 10px;border-radius:999px;font-size:12px;max-width:100%}
+.chip i{width:8px;height:8px;flex:none;border-radius:50%}
 .chip a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:260px}
-.chip button{border:0;background:transparent;color:var(--neg);cursor:pointer;padding:0 4px}
+.chip button{border:0;background:transparent;color:var(--fraco);cursor:pointer;padding:0 6px;border-radius:50%}
+.chip button:hover{color:var(--neg)}
 
-/* botões de seleção */
-.seg{display:inline-flex;flex-wrap:wrap}
-.seg button{border:1px solid var(--borda2);margin-left:-1px;background:var(--fundo);padding:3px 8px;font-size:11px;cursor:pointer;text-transform:uppercase}
-.seg button:first-child{margin-left:0}
-.seg button[aria-pressed="true"]{background:var(--ambar);color:#000;border-color:var(--ambar);position:relative;z-index:1}
-:root[data-tema="claro"] .seg button[aria-pressed="true"]{color:#fff}
-input[type=date],input[type=number],select{border:1px solid var(--borda2);background:var(--fundo);padding:3px 6px;font-size:12px;min-width:0}
-.btn{display:inline-block;border:1px solid var(--ambar);color:var(--ambar);background:transparent;padding:4px 10px;font-size:11px;letter-spacing:.06em;cursor:pointer;text-transform:uppercase}
-.btn:hover{background:var(--ambar);color:#000}
-.exp .btn{padding:2px 8px}
-.estrela{border:0;background:none;color:var(--fraco);cursor:pointer;font-size:15px;padding:0 6px 0 0;line-height:1;vertical-align:-1px}
-.estrela:hover,.estrela.on{color:var(--ambar)}
-.sel-cesta{font-size:11px;text-transform:uppercase;color:var(--ambar);border-color:var(--ambar)}
+/* botões de seleção (controle segmentado) */
+.seg{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--sup2);border:1px solid var(--borda);border-radius:8px;padding:2px}
+.seg button{border:0;background:transparent;padding:4px 10px;font-size:13px;cursor:pointer;border-radius:6px;color:var(--fraco);font-weight:500}
+.seg button:hover{color:var(--texto)}
+.seg button[aria-pressed="true"]{background:var(--sup);color:var(--ambar);box-shadow:0 1px 2px rgba(16,24,40,.12),0 0 0 1px var(--borda)}
+:root[data-tema="escuro"] .seg button[aria-pressed="true"]{background:var(--ambar2);box-shadow:none}
+input[type=date],input[type=number],select{border:1px solid var(--borda2);background:var(--sup);padding:5px 8px;border-radius:7px;font-size:13px;min-width:0}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--borda2);color:var(--texto);background:var(--sup);padding:5px 12px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;line-height:1.4}
+.btn:hover{border-color:var(--ambar);color:var(--ambar)}
+.btn.prim{background:var(--ambar);border-color:var(--ambar);color:var(--acento-txt)}
+.btn.prim:hover{filter:brightness(1.1);color:var(--acento-txt)}
+.exp .btn{padding:3px 10px;font-size:12px}
+.estrela{border:0;background:none;color:var(--borda2);cursor:pointer;font-size:16px;padding:0 6px 0 0;line-height:1;vertical-align:-1px}
+.estrela:hover,.estrela.on{color:#e3a008}
+.sel-cesta{font-size:13px;color:var(--texto);border-color:var(--borda2)}
 .cesta-cab{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--sup2);border:1px solid var(--ambar);color:var(--texto);padding:8px 14px;font-size:12px;z-index:50;max-width:calc(100% - 32px)}
-.vazio-painel{display:grid;gap:8px;color:var(--fraco)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--texto);color:var(--sup);padding:10px 16px;border-radius:8px;font-size:13px;z-index:50;max-width:calc(100% - 32px);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.vazio-painel{display:grid;gap:6px;color:var(--fraco);font-size:13px}
 .vazio-painel b{color:var(--texto)}
-.btn[disabled]{opacity:.4;cursor:default;background:transparent;color:var(--ambar)}
+.btn[disabled]{opacity:.45;cursor:default;border-color:var(--borda2);color:var(--fraco)}
+.btn.prim[disabled]{background:var(--borda2);border-color:var(--borda2);color:var(--sup)}
+
+/* cartões de números-chave */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-top:1px solid var(--borda)}
+.tile{background:var(--sup);padding:14px 16px;min-width:0;border-right:1px solid var(--borda);border-bottom:1px solid var(--borda);margin-bottom:-1px}
+.tile .k{font-size:12px;color:var(--fraco);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .v{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-top:2px;white-space:nowrap}
+.tile .s{font-size:12px;color:var(--fraco)}
+.ficha-cab{padding:18px 16px 14px;display:grid;gap:10px}
+.ficha-cab h1{margin:0;font-size:20px;font-weight:650;letter-spacing:-.015em;line-height:1.3}
+.ficha-cab .meta{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:13px;color:var(--fraco)}
+.ficha-cab .meta b{color:var(--texto);font-weight:500}
+details.bdet>summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+details.bdet>summary::-webkit-details-marker{display:none}
+details.bdet>summary .alt{color:var(--ambar);font-size:13px;font-weight:500}
+details.bdet[open]>summary{margin-bottom:12px}
+.bpill{display:inline-flex;align-items:center;font-size:12px;font-weight:500;background:var(--sup2);border:1px solid var(--borda);border-radius:999px;padding:1px 9px}
 
 /* tabelas */
 .tw{overflow-x:auto}
 table{border-collapse:collapse;width:100%}
-th,td{padding:5px 8px;border-bottom:1px solid var(--borda);text-align:right;white-space:nowrap;font-size:12px}
-th{font-size:11px;color:var(--ambar);font-weight:700;letter-spacing:.04em;text-transform:uppercase;position:sticky;top:0;background:var(--sup);z-index:1}
+th,td{padding:8px 12px;border-bottom:1px solid var(--borda);text-align:right;white-space:nowrap;font-size:13px}
+th{font-size:12px;color:var(--fraco);font-weight:600;position:sticky;top:0;background:var(--sup2);z-index:1}
 th.ord{cursor:pointer;user-select:none}
-th[title]:not([title=""]),.seg button[title]:not([title=""]){text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:var(--fraco)}
+th[title]:not([title=""]),.seg button[title]:not([title=""]){text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:var(--borda2)}
 th.ord:hover{color:var(--texto)}
 td.l,th.l{text-align:left}
-td.nome{white-space:normal;min-width:260px;max-width:420px;text-transform:uppercase}
-td.nome a:hover{color:var(--ambar)}
-tr:hover td{background:var(--sup2)}
-tr.sec td{text-align:left;color:var(--ambar);font-weight:700;font-size:11px;letter-spacing:.06em;background:var(--fundo);text-transform:uppercase}
-td.melhor{color:var(--ambar)!important;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+td.nome{white-space:nowrap;min-width:240px;max-width:400px;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+td.nome a{color:var(--texto)}
+td.nome a:hover{color:var(--ambar);text-decoration:underline;text-underline-offset:2px}
+tbody tr:hover td{background:var(--sup2)}
+tr:last-child td{border-bottom:0}
+tr.sec td{text-align:left;color:var(--fraco);font-weight:600;font-size:12px;background:var(--fundo)}
+td.melhor{color:var(--ambar)!important;font-weight:700}
 td.lbl{text-align:left;color:var(--fraco)}
-.tag{display:inline-block;font-size:10px;color:var(--ciano);margin-left:6px;letter-spacing:.06em}
-.tag.enc{color:var(--neg)}
+.tag{display:inline-block;font-size:11px;font-weight:600;color:var(--fraco);background:var(--sup2);border:1px solid var(--borda);border-radius:999px;padding:0 7px;margin-left:6px;line-height:17px;vertical-align:1px}
+.tag.enc{color:var(--neg);background:color-mix(in srgb,var(--neg) 8%,var(--sup));border-color:color-mix(in srgb,var(--neg) 25%,var(--sup))}
 
 /* gráficos */
 .grafico{position:relative;width:100%}
 .grafico svg{display:block;width:100%;height:auto}
-.tip{position:absolute;pointer-events:none;background:var(--sup);border:1px solid var(--borda2);padding:6px 8px;font-size:11px;min-width:180px;z-index:5}
-.tip .d{color:var(--ambar);margin-bottom:3px}
+.tip{position:absolute;pointer-events:none;background:var(--sup);border:1px solid var(--borda);border-radius:8px;box-shadow:0 8px 24px rgba(16,24,40,.14);padding:8px 10px;font-size:12px;min-width:190px;z-index:5}
+.tip .d{color:var(--fraco);font-weight:600;margin-bottom:4px}
 .tip .l{display:flex;justify-content:space-between;gap:10px}
-.leg{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:11px;text-transform:uppercase}
+.leg{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:12px;color:var(--fraco)}
 .leg span{display:inline-flex;gap:6px;align-items:center}
-.leg i{width:16px;height:2px;display:inline-block}
+.leg i{width:16px;height:3px;border-radius:2px;display:inline-block}
 .leg i.tr{background:repeating-linear-gradient(90deg,var(--c,var(--bench)) 0 4px,transparent 4px 7px)!important}
-tr.xp td{background:var(--xpbg)}tr.xp .nome a,tr.xp .nome{color:var(--xpc);font-weight:700}
-.tag.xp{background:var(--xpc);color:var(--fundo);border-color:var(--xpc)}
-td.q1{background:rgba(22,163,74,.16)}td.q2{background:rgba(22,163,74,.06)}td.q3{background:rgba(220,38,38,.06)}td.q4{background:rgba(220,38,38,.16)}
-tr.est td{color:var(--fraco);font-size:11px;background:var(--fundo2,transparent)}tr.est td.l{text-transform:uppercase;letter-spacing:.04em}
-.bsel{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
-.bg{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
-.bx{width:58px;padding:2px 4px;font:inherit;font-size:11px}
+tr.xp td{background:var(--xpbg)}tr.xp .nome a,tr.xp .nome{color:var(--xpc);font-weight:600}
+.tag.xp{background:#f5c518;color:#2b2100;border-color:#f5c518}
+td.q1{background:color-mix(in srgb,var(--pos) 13%,transparent)}td.q2{background:color-mix(in srgb,var(--pos) 5%,transparent)}td.q3{background:color-mix(in srgb,var(--neg) 5%,transparent)}td.q4{background:color-mix(in srgb,var(--neg) 12%,transparent)}
+tr.est td{color:var(--fraco);font-size:12px;background:var(--fundo2,transparent)}
+.bsel{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.bg{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}
+.bx{width:62px;padding:3px 6px;font:inherit;font-size:12px}
 
 /* grades de indicadores */
-.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 14px}
+.kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px 18px}
 .kv div{min-width:0}
-.kv .k{font-size:10px;color:var(--ambar);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.kv .v{font-size:13px;overflow-wrap:anywhere}
-.abas{display:flex;gap:0}
-.abas button{border:1px solid var(--borda2);margin-left:-1px;background:var(--fundo);padding:5px 10px;font-size:11px;cursor:pointer;text-transform:uppercase;letter-spacing:.04em}
-.abas button:first-child{margin-left:0}
-.abas button[aria-pressed="true"]{background:var(--ambar);color:#000;border-color:var(--ambar)}
-:root[data-tema="claro"] .abas button[aria-pressed="true"]{color:#fff}
+.kv .k{font-size:12px;color:var(--fraco);font-weight:500}
+.kv .v{font-size:15px;font-weight:500;overflow-wrap:anywhere}
+.abas{display:flex;gap:4px;border-bottom:1px solid var(--borda)}
+.abas button{border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:transparent;padding:8px 14px;font-size:14px;font-weight:500;cursor:pointer;color:var(--fraco)}
+.abas button:first-letter{text-transform:uppercase}
+.abas button:hover{color:var(--texto)}
+.abas button[aria-pressed="true"]{color:var(--ambar);border-bottom-color:var(--ambar)}
 .mapa td,.mapa th{text-align:center;min-width:64px}
 .mapa td.l{text-align:left}
-.lista{max-height:330px;overflow:auto}
-tr.sel td{background:var(--sup2)}
+.lista{max-height:360px;overflow:auto}
+tr.sel td{background:var(--ambar2)}
 tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--ambar)}
-.carregando{color:var(--fraco);padding:10px}
-footer{border-top:1px solid var(--borda);font-size:10px;color:var(--fraco);padding-block:8px;text-transform:uppercase;letter-spacing:.02em}
-@media (max-width:700px){.drop button{grid-template-columns:1fr}.drop .t{text-align:left}td.nome{min-width:200px}.status .dir{margin-left:0}}
+.carregando{color:var(--fraco);padding:14px 16px}
+footer{border-top:1px solid var(--borda);font-size:12px;color:var(--fraco);padding-block:14px}
+@media (max-width:900px){.nav a kbd{display:none}.nav a{padding:0 8px}}
+@media (max-width:700px){.wrap{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}.topo .linha{gap:6px;padding-block:8px}.nav{order:3;width:100%;overflow-x:auto;flex-wrap:nowrap}.nav a{padding:6px 10px;border-bottom-width:2px}.drop button{grid-template-columns:1fr}.drop .t{text-align:left}td.nome{min-width:200px;max-width:260px}.status .dir{margin-left:0}.tile .v{font-size:19px}.tiles{grid-template-columns:repeat(2,1fr)}main{gap:12px;padding-block:12px}.painel>.corpo{padding:12px}.painel>.cab{padding:10px 12px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <header class="topo">
   <div class="wrap linha">
-    <a class="logo" href="#/">COMPARADOR<b>·</b>DE FUNDOS</a>
+    <a class="logo" href="#/">Comparador <b>de Fundos</b></a>
     <nav class="nav" id="nav">
-      <a href="#/painel" data-r="painel">F1 Painel</a>
-      <a href="#/ranking" data-r="ranking">F2 Ranking</a>
-      <a href="#/compara" data-r="compara">F3 Compara</a>
-      <a href="#/gestores" data-r="gestores">F4 Gestores e administradores</a>
-      <a href="#/estruturados" data-r="estruturados">F5 Estruturados</a>
-      <a href="#/listados" data-r="listados">F6 Listados</a>
+      <a href="#/painel" data-r="painel">Painel <kbd>F1</kbd></a>
+      <a href="#/ranking" data-r="ranking">Ranking <kbd>F2</kbd></a>
+      <a href="#/compara" data-r="compara">Compara <kbd>F3</kbd></a>
+      <a href="#/gestores" data-r="gestores">Gestores <kbd>F4</kbd></a>
+      <a href="#/estruturados" data-r="estruturados">Estruturados <kbd>F5</kbd></a>
+      <a href="#/listados" data-r="listados">Listados <kbd>F6</kbd></a>
     </nav>
     <button class="tema" id="sair" type="button" hidden title="Esquecer a senha neste navegador">Sair</button><button class="tema" id="tema" type="button">Tema claro</button>
   </div>
   <div class="wrap status"><span class="fonte">CVM · B3 · ANBIMA · BCB</span><span id="st-dados">Dados até —</span><span class="dir" id="st-series">—</span></div>
 </header>
 <main class="wrap" id="app"><div class="carregando">Carregando…</div></main>
-<footer class="wrap" id="rodape">Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI · Ibovespa · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento</footer>
+<footer class="wrap" id="rodape">Dados públicos da CVM, B3, ANBIMA e Banco Central · Rentabilidade passada não é garantia de rentabilidade futura · Não é recomendação de investimento</footer>
 
 <script>
 (function(){
@@ -276,6 +311,7 @@ let IDX=null;
 let PEERS={grupos:[],xp:[]},XPSET=new Set();
 async function carregaPeers(){try{const j=await getJson("peers.txt");PEERS=j;XPSET=new Set(j.xp||[]);}catch(e){console.warn("peers.json",e);}}
 const ehXP=id=>!!id&&XPSET.has(String(id).slice(0,14));
+const tagSit=f=>f.ativo?"":'<span class="tag enc">'+(/funcionamento/i.test(f.situacao||"")?"sem cota recente":h((f.situacao||"encerrado").toLowerCase()))+'</span>';
 const tagXP=id=>ehXP(id)?'<span class="tag xp">XP</span>':"";
 // CNPJ da planilha → fundo da base: a própria classe ou, se ela só existe como subclasses, a subclasse ativa de maior PL
 function resolvePeer(idx,cnpj){const e=idx.porId.get(cnpj);if(e&&e.serie==="D"&&e.ativo)return e;let m=null;for(const f of idx.lista){if(f.cnpj!==cnpj||f.serie!=="D")continue;if(!m||(f.ativo-m.ativo||(f.pl||0)-(m.pl||0))>0)m=f;}return m&&(!e||m.ativo>=e.ativo)?m:e||m;}
@@ -495,7 +531,7 @@ function busca(el,op){
     if(/^\d{3,}$/.test(dig))r=idx.lista.filter(f=>f.cnpj.startsWith(dig));
     else{const ok=casaNome(q);r=idx.lista.filter(f=>ok(f.bn));}
     r=r.filter(visivel);if(op.filtro)r=r.filter(op.filtro);res=r.slice(0,40);foco=-1;
-    drop.innerHTML=res.length?res.map((f,i)=>'<button type="button" data-i="'+i+'"><span class="n">'+h(f.nome)+tagXP(f.id)+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</span><span class="c">'+cnpjFmt(f.cnpj)+'</span><span class="t">'+h(f.classe||f.tipo||"—")+'</span></button>').join(""):'<div class="vazio">Nenhum fundo encontrado.</div>';
+    drop.innerHTML=res.length?res.map((f,i)=>'<button type="button" data-i="'+i+'"><span class="n">'+h(f.nome)+tagXP(f.id)+(f.serie==="M"?'<span class="tag">mensal</span>':"")+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</span><span class="c">'+cnpjFmt(f.cnpj)+'</span><span class="t">'+h(f.classe||f.tipo||"—")+'</span></button>').join(""):'<div class="vazio">Nenhum fundo encontrado.</div>';
     drop.hidden=false;
   }
   inp.addEventListener("input",()=>{clearTimeout(tm);tm=setTimeout(roda,120);});
@@ -580,7 +616,7 @@ function tabelaResumo(rows,op){
   let t='<thead><tr>'+(op.selecao?'<th></th>':'')+'<th class="l">Fundo</th><th class="l">Classe</th><th>Última cota</th><th>Dia</th><th>MTD</th><th>No ano</th><th>12M</th><th>% CDI 12M</th><th>Vol 12M</th><th>PL</th><th>Capt. líq. 12M</th>'+(op.remover?'<th></th>':'')+'</tr></thead><tbody>';
   for(const r of rows){
     t+='<tr class="'+(ehXP(r.id)?"xp":"")+'">'+(op.selecao?'<td><input type="checkbox" data-id="'+h(r.id)+'" aria-label="Selecionar '+h(r.nome)+'"></td>':'')+
-      '<td class="nome l">'+estrela(r.id)+(r.existe?'<a href="#/fundo/'+encodeURIComponent(r.id)+'">'+h(r.nome)+'</a>'+tagXP(r.id):h(r.nome)+' <span class="fraco">(não encontrado)</span>')+(r.mensal?'<span class="tag">MENSAL</span>':"")+(r.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td>'+
+      '<td class="nome l">'+estrela(r.id)+(r.existe?'<a href="#/fundo/'+encodeURIComponent(r.id)+'" title="'+h(r.nome)+'">'+h(r.nome)+'</a>'+tagXP(r.id):h(r.nome)+' <span class="fraco">(não encontrado)</span>')+(r.mensal?'<span class="tag">mensal</span>':"")+(r.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td>'+
       '<td class="l">'+h(r.classe)+'</td><td>'+(r.ultima?(r.mensal?r.ultima.slice(5,7)+"/"+r.ultima.slice(0,4):dt(r.ultima)):"—")+'</td>'+
       (r.mensal?'<td>—</td>':col(r.dia))+col(r.r1m)+col(r.ano)+col(r.r12)+
       '<td>'+(r.pcdi==null||!isFinite(r.pcdi)?"—":nf0.format(r.pcdi*100).replace("-","−")+"%")+'</td><td>'+pct(r.vol,false)+'</td><td>'+brl(r.pl)+'</td><td class="'+cls(r.cap12)+'">'+brlS(r.cap12)+'</td>'+
@@ -617,11 +653,11 @@ function painelCasa(idx,pedido){
     const _linhaEst=(rot,fn)=>'<tr class="est"><td></td><td class="l" colspan="2">'+rot+'</td>'+PG.slice(3).map(([k])=>'<td>'+(est[k].length?fmt(k,fn(est[k])):"—")+'</td>').join("")+'</tr>';
     for(const f of ord){
       if(!f.ok){t+='<tr><td></td><td class="nome l fraco">'+h(f.nome)+' <span class="fraco">('+cnpjFmt(f.cnpj)+' · não encontrado na base da CVM)</span></td><td colspan="'+(PG.length-2)+'"></td></tr>';continue;}
-      t+='<tr class="'+(ehXP(f.id)?"xp":"")+'"><td><input type="checkbox" data-id="'+h(f.id)+'"'+(sel.has(f.id)?" checked":"")+' aria-label="Selecionar '+h(f.nome)+'"></td><td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td><td class="l fraco" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+h(f.gestor||"—")+'</td>'+
+      t+='<tr class="'+(ehXP(f.id)?"xp":"")+'"><td><input type="checkbox" data-id="'+h(f.id)+'"'+(sel.has(f.id)?" checked":"")+' aria-label="Selecionar '+h(f.nome)+'"></td><td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'" title="'+h(f.nome)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.ativo?"":'<span class="tag enc">ENCERRADO</span>')+'</td><td class="l fraco" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">'+h(f.gestor||"—")+'</td>'+
         PG.slice(3).map(([k])=>'<td class="'+quart(k,f[k])+' '+(RET.includes(k)?cls(f[k]):"")+'">'+fmt(k,f[k])+'</td>').join("")+'</tr>';
     }
     $("#pg-box").innerHTML='<div class="corpo" style="padding-top:0"><div class="linha" style="justify-content:space-between"><span class="fraco">'+h(g.nome)+' · '+achados.length+' fundos'+(nXP?' · <b style="color:var(--xpc)">'+nXP+' da XP Asset</b>':'')+(falt?' · '+falt+' não encontrados':'')+' · verde = quartil de cima, vermelho = quartil de baixo</span>'+
-      '<span class="linha"><span class="sub" id="pg-sel">'+sel.size+' selecionados</span><button class="btn" id="pg-cmp"'+(sel.size?"":" disabled")+'>Comparar ▸</button>'+seletorCesta("pg-cst")+'<button class="btn" id="pg-dup" title="Cria uma cópia editável em Meus peer groups">Duplicar como meu</button>'+botoesExportar("pg-x")+'</span></div></div><div class="tw"><table id="pg-t">'+t+'</tbody></table></div>';
+      '<span class="linha"><span class="sub" id="pg-sel">'+sel.size+' selecionados</span><button class="btn prim" id="pg-cmp"'+(sel.size?"":" disabled")+'>Comparar ▸</button>'+seletorCesta("pg-cst")+'<button class="btn" id="pg-dup" title="Cria uma cópia editável em Meus peer groups">Duplicar como meu</button>'+botoesExportar("pg-x")+'</span></div></div><div class="tw"><table id="pg-t">'+t+'</tbody></table></div>';
     $("#pg-t").onclick=e=>{const th=e.target.closest("th[data-k]");if(th){const k=th.dataset.k;if(st.ord===k)st.dir*=-1;else{st.ord=k;st.dir=["nome","gestor","v12","vper"].includes(k)?1:-1;}desenha();}};
     $("#pg-t").onchange=e=>{const c=e.target.closest("input[data-id]");if(!c)return;if(c.checked)sel.add(c.dataset.id);else sel.delete(c.dataset.id);$("#pg-sel").textContent=sel.size+" selecionados"+(sel.size>MAXF?" (a comparação usa 8)":"");$("#pg-cmp").disabled=!sel.size;};
     $("#pg-cmp").onclick=()=>irCompara({f:[...sel].slice(0,MAXF),j:"12m",b:["CDI"],de:"",ate:""});
@@ -640,12 +676,12 @@ async function telaPainel(r){
   app.innerHTML=`
   ${PEERS.grupos.length?`<section class="painel"><div class="cab" id="pg-cab" role="button" tabindex="0" aria-expanded="${ls("lupa-pg-min")!=="1"}" style="cursor:pointer" title="Clique para recolher ou expandir"><span><span id="pg-seta">${ls("lupa-pg-min")==="1"?"▸":"▾"}</span> Peer groups da casa</span></div>
     <div id="pg-corpo"${ls("lupa-pg-min")==="1"?" hidden":""}><div class="corpo"><div class="seg" id="pg-tabs">${PEERS.grupos.map(g=>'<button type="button" data-g="'+h(g.id)+'">'+h(g.nome)+'</button>').join("")}</div></div><div id="pg-box"></div></div></section>`:""}
-  <section class="painel"><div class="cab">Meu painel<span class="linha"><span class="sub">salvo neste navegador</span><button type="button" class="btn" id="pn-exp">Exportar painel</button><label class="btn" style="cursor:pointer">Importar painel<input type="file" id="pn-imp" accept=".json,application/json" hidden></label></span></div>
-    <div class="corpo"><div class="fraco" style="font-size:11px">Favoritos e peer groups ficam guardados só neste navegador, e ninguém mais vê. Para levar para outro aparelho, use o link de cada peer group ou exporte o painel e importe do outro lado.</div></div></section>
-  ${compartilhada?`<section class="painel aviso"><div class="cab">Peer group compartilhado<span class="linha"><button class="btn" id="pn-sv">Salvar no meu painel</button><button class="btn" id="pn-cmpc">Comparar ▸</button></span></div><div class="corpo"><div><b style="color:var(--texto)">${h(compartilhada.nome)}</b> · ${compartilhada.fundos.length} fundos</div><div class="tw"><table id="pn-ct"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`:""}
-  <section class="painel"><div class="cab">Favoritos · ${PAINEL.fav.length}<span class="linha"><span class="sub" id="pn-fsel">0 selecionados</span><button class="btn" id="pn-fcmp" disabled>Comparar ▸</button>${seletorCesta("pn-fcst")}</span></div>
+  <section class="painel"><div class="cab">Meu painel<span class="linha"><span class="sub" title="Favoritos e peer groups ficam guardados só neste navegador, e ninguém mais vê. Para levar para outro aparelho, use o link de cada peer group ou exporte o painel e importe do outro lado.">salvo neste navegador ⓘ</span><button type="button" class="btn" id="pn-exp">Exportar painel</button><label class="btn" style="cursor:pointer">Importar painel<input type="file" id="pn-imp" accept=".json,application/json" hidden></label></span></div>
+    </section>
+  ${compartilhada?`<section class="painel aviso"><div class="cab">Peer group compartilhado<span class="linha"><button class="btn" id="pn-sv">Salvar no meu painel</button><button class="btn prim" id="pn-cmpc">Comparar ▸</button></span></div><div class="corpo"><div><b style="color:var(--texto)">${h(compartilhada.nome)}</b> · ${compartilhada.fundos.length} fundos</div><div class="tw"><table id="pn-ct"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`:""}
+  <section class="painel"><div class="cab">Favoritos · ${PAINEL.fav.length}<span class="linha"><span class="sub" id="pn-fsel">0 selecionados</span><button class="btn prim" id="pn-fcmp" disabled>Comparar ▸</button>${seletorCesta("pn-fcst")}</span></div>
     <div class="tw"><table id="pn-ft"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></section>
-  <section class="painel"><div class="cab">Meus peer groups · ${PAINEL.cestas.length}<button type="button" class="btn" id="pn-nova">+ Novo peer group</button></div>
+  <section class="painel"><div class="cab">Meus peer groups · ${PAINEL.cestas.length}<button type="button" class="btn prim" id="pn-nova">+ Novo peer group</button></div>
     <div class="corpo" id="pn-cestas"></div></section>`;
   if(PEERS.grupos.length){
     painelCasa(idx,r.q.get("pg"));
@@ -676,7 +712,7 @@ async function telaPainel(r){
   const box=$("#pn-cestas");
   if(!PAINEL.cestas.length){box.innerHTML='<div class="vazio-painel"><div><b>Peer groups são grupos de fundos que você monta</b>, por exemplo "Concorrentes do meu fundo", "Multimercados que acompanho" ou "FIIs de logística".</div><div>Crie um peer group acima e adicione fundos pela busca dentro dele, ou marque fundos no ranking e use "Adicionar ao peer group".</div></div>';return;}
   box.innerHTML=PAINEL.cestas.map((c,i)=>`<section class="painel" style="background:var(--fundo)"><div class="cab"><span class="cesta-cab"><span style="color:var(--texto)">${h(c.nome)}</span><span class="sub">${c.fundos.length} fundo${c.fundos.length===1?"":"s"}</span></span>
-      <span class="linha"><button class="btn" data-a="cmp" data-c="${i}"${c.fundos.length?"":" disabled"}>Comparar ▸</button><button class="btn" data-a="lnk" data-c="${i}"${c.fundos.length?"":" disabled"}>Copiar link</button><button class="btn" data-a="ren" data-c="${i}">Renomear</button><button class="btn" data-a="del" data-c="${i}" style="color:var(--neg);border-color:var(--neg)">Excluir</button></span></div>
+      <span class="linha"><button class="btn prim" data-a="cmp" data-c="${i}"${c.fundos.length?"":" disabled"}>Comparar ▸</button><button class="btn" data-a="lnk" data-c="${i}"${c.fundos.length?"":" disabled"}>Copiar link</button><button class="btn" data-a="ren" data-c="${i}">Renomear</button><button class="btn" data-a="del" data-c="${i}" style="color:var(--neg);border-color:var(--neg)">Excluir</button></span></div>
     <div class="corpo"><div id="pn-cb-${i}"></div><div class="tw"><table id="pn-c-${i}"><tbody><tr><td class="carregando">Carregando…</td></tr></tbody></table></div></div></section>`).join("");
   box.onclick=async e=>{
     const rm=e.target.closest("button[data-rm]");
@@ -899,10 +935,10 @@ function montarRanking(el,op){
       <div><div class="rotulo">Janela</div><div class="seg" id="rk-j">${JAN_RK.map(j=>'<button type="button" data-j="'+j[0]+'" title="'+h(dicaJan(j[0]))+'">'+j[1]+'</button>').join("")}</div></div>
       ${op.investidor?'<label class="canc" title="Esconde fundos exclusivos, masters e fundos com um único cotista (espelhos e veículos internos), que repetem o mesmo produto no ranking"><input type="checkbox" id="rk-inv"> Só fundos para investidor</label>':""}
       <div><div class="rotulo">PL mínimo (R$)</div><input type="number" id="rk-pl" min="0" step="1000000" placeholder="0" style="width:130px"></div>
-      <div style="margin-left:auto;text-align:right"><div class="rotulo">População</div><div style="color:var(--ambar);font-size:16px;font-weight:700" id="rk-n">—</div><div class="fraco" style="font-size:10px" id="rk-nd"></div></div>
+      <div style="margin-left:auto;text-align:right;align-self:flex-end"><span style="font-size:20px;font-weight:600;color:var(--texto)" id="rk-n">—</span> <span class="fraco" style="font-size:13px" id="rk-nd"></span></div>
     </div>
   </div></section>
-  <section class="painel"><div class="cab">Ranking<span class="linha"><span class="sub" id="rk-sel">0 selecionados</span><button class="btn" id="rk-cmp" disabled>Comparar ▸</button>${seletorCesta("rk-cst")}</span></div>
+  <section class="painel"><div class="cab">Ranking<span class="linha"><span class="sub" id="rk-sel">0 selecionados</span><button class="btn prim" id="rk-cmp" disabled>Comparar ▸</button>${seletorCesta("rk-cst")}</span></div>
     <div class="tw"><table id="rk-t"></table></div><div class="corpo" id="rk-mais" hidden><div><button class="btn" id="rk-mais-b">Mostrar mais</button></div></div></section>`;
   const q=$("#rk-q",el);q.value=F.q;$("#rk-c",el).value=F.classe;$("#rk-s",el).value=F.sit;$("#rk-pl",el).value=F.plmin;
   const botoes=()=>{$("#rk-j",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.j===F.jan));$("#rk-u",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.u===F.u));$("#rk-se",el).querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.s===F.serie));};
@@ -926,8 +962,8 @@ function montarRanking(el,op){
     let t='<thead><tr>'+COLS.map(([k,l,a])=>k==="sel"?'<th></th>':'<th class="ord '+(a||"")+'" data-k="'+k+'" title="'+h(k==="rdia"?dicaJan("dia"):PREF[k]?dicaJan(F.jan):k==="cap12"?dicaJan("cap12"):"")+'">'+l+(PREF[k]?" "+jl:"")+(F.ord===k?(F.dir<0?" ▼":" ▲"):"")+'</th>').join("")+'</tr></thead><tbody>';
     for(const f of vis){
       t+='<tr class="'+(ehXP(f.id)?"xp":"")+'"><td><input type="checkbox" data-id="'+h(f.id)+'" aria-label="Selecionar '+h(f.nome)+'"'+(sel.has(f.id)?" checked":"")+'></td>'+
-        '<td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.serie==="M"?'<span class="tag">MENSAL</span>':"")+'</td>'+
-        '<td class="l">'+h(f.classe||f.tipo||"—")+(f.ativo?"":'<span class="tag enc">'+h((f.situacao||"encerrado").toUpperCase().slice(0,14))+'</span>')+'</td>'+
+        '<td class="nome l">'+estrela(f.id)+'<a href="#/fundo/'+encodeURIComponent(f.id)+'" title="'+h(f.nome)+'">'+h(f.nome)+'</a>'+tagXP(f.id)+(f.serie==="M"?'<span class="tag">mensal</span>':"")+'</td>'+
+        '<td class="l">'+h(f.classe||f.tipo||"—")+tagSit(f)+'</td>'+
         '<td class="'+cls(f.rdia)+'">'+pct(f.rdia)+'</td>'+
         (()=>{const r=valorRk(f,"ret",F),c=valorRk(f,"pcdi",F);return'<td class="'+cls(r)+'">'+pct(r)+'</td><td>'+(c==null?"—":nf0.format(c*100).replace("-","−")+"%")+'</td><td>'+pct(valorRk(f,"vol",F),false)+'</td><td>'+num(valorRk(f,"sharpe",F))+'</td>';})()+
         '<td>'+(f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"%")+'</td><td>'+brl(f.pl)+'</td><td class="'+cls(f.cap12)+'">'+brlS(f.cap12)+'</td>'+
@@ -969,7 +1005,7 @@ async function telaGrupos(r,campo){
   const mesRot=mesesG[mesAnt]?MES[+mesesG[mesAnt].slice(5,7)-1]+"/"+mesesG[mesAnt].slice(2,4):"mês";
   app.innerHTML=`<div class="abas"><a class="btn" href="#/gestores" style="${campo==="gestor"?"background:var(--ambar);color:var(--fundo)":""}">Gestores</a><a class="btn" href="#/administradores" style="margin-left:-1px;${campo==="admin"?"background:var(--ambar);color:var(--fundo)":""}">Administradores</a></div>
   <section class="painel"><div class="cab">${nomeTela} · captação e patrimônio<span class="sub">${nf0.format(lista.length)} ${nomeTela.toLowerCase()} · fundos líquidos para investidor, ativos</span></div><div class="corpo"><div class="prompt"><input type="search" id="gr-q" placeholder="Buscar ${nomeTela.toLowerCase()} por nome…" aria-label="Buscar"></div>
-    <div class="fraco" style="font-size:11px">Soma dos fundos líquidos para investidor (sem exclusivos, masters e fundos de um cotista só, para não contar o mesmo dinheiro duas vezes). Captação líquida = captação − resgates informados à CVM. 12M inclui o mês corrente até a última data publicada.</div></div>
+    <details class="nota"><summary>Como ler estes números</summary>Soma dos fundos líquidos para investidor (sem exclusivos, masters e fundos de um cotista só, para não contar o mesmo dinheiro duas vezes). Captação líquida = captação − resgates informados à CVM. 12M inclui o mês corrente até a última data publicada.</details></div>
     <div class="tw lista"><table id="gr-t"></table></div></section><div id="gr-f" style="display:grid;gap:10px"></div>`;
   function desenha(){
     const tk=norm(st.q).split(/\s+/).filter(Boolean),okG=casaNome(st.q);
@@ -1020,9 +1056,9 @@ async function telaListados(r){
       <div><div class="rotulo">Tipo</div><div class="seg" id="ls-t">${TIPOS_L.map(([k,l])=>'<button type="button" data-t="'+k+'">'+l+'</button>').join("")}</div></div>
       <div><div class="rotulo">Segmento (FII)</div><select id="ls-s"><option value="">todos</option>${[...new Set(L.lista.map(x=>x.segmento).filter(Boolean))].sort().map(x=>'<option>'+h(x)+'</option>').join("")}</select></div>
       <div><div class="rotulo">Liquidez mínima/dia (R$)</div><input type="number" id="ls-l" min="0" step="100000" placeholder="0" style="width:130px"></div>
-      <div style="margin-left:auto;text-align:right"><div class="rotulo">Papéis</div><div style="color:var(--ambar);font-size:16px;font-weight:700" id="ls-n">—</div></div>
+      <div style="margin-left:auto;text-align:right;align-self:flex-end"><span style="font-size:20px;font-weight:600;color:var(--texto)" id="ls-n">—</span> <span class="fraco" style="font-size:13px">papéis</span></div>
     </div>
-    <div class="fraco" style="font-size:11px">Preço de fechamento ajustado por desdobramentos e grupamentos; retornos são só de preço. DY 12M = rendimentos dos últimos 12 meses ÷ preço atual, com o rendimento por cota estimado a partir do informe mensal da CVM (DY do mês × valor patrimonial da cota). P/VP usa o valor patrimonial do último informe.</div>
+    <details class="nota"><summary>Como ler estes números</summary>Preço de fechamento ajustado por desdobramentos e grupamentos; retornos são só de preço. DY 12M = rendimentos dos últimos 12 meses ÷ preço atual, com o rendimento por cota estimado a partir do informe mensal da CVM (DY do mês × valor patrimonial da cota). P/VP usa o valor patrimonial do último informe.</details>
   </div></section>
   <section class="painel"><div class="cab">Papéis<span class="linha">${botoesExportar("ls-x")}</span></div><div class="tw"><table id="ls-tab"></table></div><div class="corpo" id="ls-mais" hidden><div><button class="btn" id="ls-mb">Mostrar mais</button></div></div></section>`;
   $("#ls-q").value=F.q;$("#ls-s").value=F.seg;$("#ls-l").value=F.liq;
@@ -1101,19 +1137,19 @@ async function telaEstruturados(){
 // ================================================================ FICHA DO FUNDO
 async function telaFundo(r){
   const id=r.arg,q=r.q;
-  const [f]=await Promise.all([ficha(id).catch(()=>null),meta(),benchs()]);
+  const [f,,,IXF]=await Promise.all([ficha(id).catch(()=>null),meta(),benchs(),indice().catch(()=>null)]);
+  const fx=IXF?IXF.porId.get(id):null;
   if(!f){app.innerHTML='<section class="painel aviso"><div class="cab">Fundo não encontrado</div><div class="corpo">Não há dados para "'+h(id)+'". Use o ranking (F2) ou a busca da comparação (F3).</div></section>';return;}
   const aba=q.get("aba")||"desempenho",jan=q.get("j")||"12m",de=q.get("de")||"",ate=q.get("ate")||"";
   const bq=q.get("b");
   const link=o=>{const p=new URLSearchParams({aba,j:jan});if(de)p.set("de",de);if(ate)p.set("ate",ate);if(bq!=null)p.set("b",bq);for(const k in o){if(o[k]==="")p.delete(k);else p.set(k,o[k]);}return"#/fundo/"+encodeURIComponent(id)+"?"+p.toString();};
   const k=(rot,val)=>'<div><div class="k">'+rot+'</div><div class="v">'+val+'</div></div>';
   app.innerHTML=`
-  <section class="painel"><div class="cab"><span style="color:${ehXP(f.id)?"var(--xpc)":"var(--texto)"}">${estrela(f.id)}${h(f.nome)}${tagXP(f.id)}</span><span class="linha">${(()=>{const rg=(f.documentos||[]).find(x=>x.t==="Regulamento");return rg?'<a class="btn" href="'+h(rg.u)+'" target="_blank" rel="noopener" title="Regulamento entregue à CVM em '+h(dt(rg.d))+'">Regulamento ↗</a>':"";})()}${seletorCesta("fd-cst")}<a class="btn" href="#" id="fd-cmp">Comparar ▸</a></span></div><div class="corpo">
-    <div class="kv">
-      ${k("CNPJ",cnpjFmt(f.cnpj))}${k("Classe",h(f.classe||f.tipo||"—"))}${k("Situação",h(f.ativo?"ativo":(f.situacao||"encerrado").toLowerCase()))}
-      ${k("Início do fundo",dt(f.inicio))}${k("Série na base",f.primeira?dt(f.primeira)+" → "+dt(f.ultima):"—")}${k("Pregões",f.pregoes?nf0.format(f.pregoes):"—")}
-      ${k("PL",brl(f.pl))}${k("Taxa adm",f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"%")}${k("Subclasse",h(f.sub||"—"))}
-    </div></div></section>
+  <section class="painel"><div class="ficha-cab"><div class="linha" style="justify-content:space-between;align-items:flex-start;gap:12px"><h1 style="color:${ehXP(f.id)?"var(--xpc)":"var(--texto)"}">${estrela(f.id)}${h(f.nome)}${tagXP(f.id)}</h1><span class="linha">${(()=>{const rg=(f.documentos||[]).find(x=>x.t==="Regulamento");return rg?'<a class="btn" href="'+h(rg.u)+'" target="_blank" rel="noopener" title="Regulamento entregue à CVM em '+h(dt(rg.d))+'">Regulamento ↗</a>':"";})()}${seletorCesta("fd-cst")}<a class="btn prim" href="#" id="fd-cmp">Comparar ▸</a></span></div>
+    <div class="meta"><span>CNPJ <b>${cnpjFmt(f.cnpj)}</b></span><span>Classe <b>${h(f.classe||f.tipo||"—")}</b></span>${f.gestor?'<span>Gestor <b>'+h(f.gestor)+'</b></span>':""}<span>Situação <b>${f.ativo?"ativo":/funcionamento/i.test(f.situacao||"")?"sem cota recente":h((f.situacao||"encerrado").toLowerCase())}</b></span><span>Início <b>${dt(f.inicio)}</b></span>${f.sub?'<span>Subclasse <b>'+h(f.sub)+'</b></span>':""}<span>Série na base <b>${f.primeira?dt(f.primeira)+" → "+dt(f.ultima):"—"}</b></span>${f.pregoes?'<span>Pregões <b>'+nf0.format(f.pregoes)+'</b></span>':""}</div></div>
+    <div class="tiles">${(()=>{const x=fx||{};const tl=(rot,v,c,sub)=>'<div class="tile"><div class="k">'+rot+'</div><div class="v'+(c?" "+c:"")+'">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':"")+'</div>';
+      const pc=x.c12==null||!isFinite(x.c12)?"—":nf0.format(x.c12*100).replace("-","−")+"%";
+      return tl("Rentabilidade 12M",pct(x.r12),cls(x.r12))+tl("% do CDI 12M",pc)+tl("No ano",pct(x.rano),cls(x.rano))+tl("Volatilidade 12M",pct(x.v12,false))+tl("Sharpe 12M",num(x.s12))+tl("Patrimônio",brl(f.pl))+tl("Captação líq. 12M",brlS(x.cap12),cls(x.cap12))+tl("Taxa de adm.",f.taxa_adm==null?"—":nf2.format(f.taxa_adm)+"% a.a.");})()}</div></section>
   <div class="abas">${["desempenho","carteira","cadastro"].map(a=>'<button type="button" aria-pressed="'+(a===aba)+'" data-a="'+a+'">'+a+'</button>').join("")}</div>
   <div id="fd-c" style="display:grid;gap:10px"></div>`;
   $("#fd-cmp").onclick=e=>{e.preventDefault();adicionarComparar([f.id]);};
@@ -1152,7 +1188,7 @@ async function telaFundo(r){
   const rot=de||ate?"período":(JANELAS.find(x=>x[0]===jan)||[0,""])[1];
   c.innerHTML=`<section class="painel"><div class="corpo"><div class="linha"><span class="rotulo">Janela</span><div class="seg" id="fd-j">${JANELAS.map(([kk,l])=>'<button type="button" data-j="'+kk+'" title="'+h(kk==="max"?"Desde a primeira cota ("+dt(f.d[0])+")":"De "+dt(inicioJanela(f.ultima,kk))+" a "+dt(f.ultima))+'" aria-pressed="'+(!de&&!ate&&jan===kk)+'">'+l+'</button>').join("")}</div>
     <span class="rotulo" style="margin-left:10px">Período</span><input type="date" id="fd-de" value="${h(de)}" aria-label="Data inicial"> <span class="fraco">→</span> <input type="date" id="fd-ate" value="${h(ate)}" aria-label="Data final"></div>
-    <div class="linha"><span class="rotulo">Benchmarks</span><span class="fraco">${bq==null?"padrão: CDI"+(bsel.length>1?" e o indicador de desempenho do fundo":""):""}</span></div><div id="fd-b"></div></div></section>
+    <details class="bdet"><summary><span class="rotulo">Comparar com</span>${bser.filter(Boolean).map(b=>'<span class="bpill">'+h(b.nome)+'</span>').join("")||'<span class="fraco">nenhum benchmark</span>'}<span class="alt">Alterar ▾</span></summary><div id="fd-b"></div></details></div></section>
   <section class="painel"><div class="cab">Histórico de cotas<span class="linha"><select id="fd-xp" aria-label="Período da exportação"><option value="janela">Período do gráfico (${h(w.d.length?dt(w.d[0])+" → "+dt(w.d[w.d.length-1]):"—")})</option><option value="tudo">Histórico completo (${h(dt(f.d[0])+" → "+dt(f.d[f.d.length-1]))})</option></select>${botoesExportar("fd-x")}</span></div></section>
   <section class="painel"><div class="cab">Rentabilidade acumulada · ${h(rot)}</div><div class="corpo"><div class="grafico" id="fd-g"></div><div id="fd-leg"></div></div></section>
   <section class="painel"><div class="cab">Indicadores · ${h(rot)}${mt?" · "+dt(mt.ini)+" → "+dt(mt.fim)+" · "+nf0.format(mt.pregoes)+" pregões":""}</div><div class="corpo"><div class="kv">
@@ -1256,7 +1292,7 @@ function desempenhoMensal(c,f){
       ${k("Retorno 12M",'<span class="'+cls(r12)+'">'+pct(r12)+'</span>')}${k("Retorno no ano",'<span class="'+cls(okAno?rAno-1:null)+'">'+(okAno?pct(rAno-1):"—")+'</span>')}${k("% do CDI (12M)",r12!=null&&cdi12?nf0.format(r12/cdi12*100)+"% do CDI":"—")}
       ${M.dy?k("Dividend yield 12M",pct(dy12,false)):""}${k("PL",brl(f.pl))}${k("Cotistas",f.cotistas==null?"—":nf0.format(f.cotistas))}
       ${M.vpc?k("Valor patrimonial da cota",M.vpc[ult]==null?"—":"R$ "+nf2.format(M.vpc[ult])):""}${f.segmento?k("Segmento",h(f.segmento)):""}${f.mandato?k("Mandato",h(f.mandato)):""}${f.isin?k("ISIN",h(f.isin)):""}
-    </div><div class="fraco" style="font-size:11px">${f.tipo==="FIDC"?"Rentabilidade da série de maior patrimônio (normalmente a sênior), informada pelo administrador.":"Rentabilidade efetiva do mês informada pelo administrador (inclui rendimentos distribuídos)."}</div></div></section>
+    </div><details class="nota"><summary>Como ler estes números</summary>${f.tipo==="FIDC"?"Rentabilidade da série de maior patrimônio (normalmente a sênior), informada pelo administrador.":"Rentabilidade efetiva do mês informada pelo administrador (inclui rendimentos distribuídos)."}</details></div></section>
   <section class="painel"><div class="cab">Histórico mensal${botoesExportar("fm-x")}</div></section>
   ${temR?'<section class="painel"><div class="cab">Rentabilidade acumulada (mensal)</div><div class="corpo"><div class="grafico" id="fm-g"></div></div></section>':""}
   <section class="painel"><div class="cab">Patrimônio líquido</div><div class="corpo"><div class="grafico" id="fm-pl"></div></div></section>
@@ -1288,11 +1324,11 @@ function desempenhoMensal(c,f){
 // ================================================================ tema e status
 
 const temaBtn=$("#tema");
-function aplicaTema(t){if(t==="claro")document.documentElement.setAttribute("data-tema","claro");else document.documentElement.removeAttribute("data-tema");temaBtn.textContent=t==="claro"?"Tema escuro":"Tema claro";}
+function aplicaTema(t){document.documentElement.setAttribute("data-tema",t==="claro"?"claro":"escuro");temaBtn.textContent=t==="claro"?"Tema escuro":"Tema claro";}
 aplicaTema(ls("lupa-tema")||"claro");
 temaBtn.onclick=()=>{const t=document.documentElement.getAttribute("data-tema")==="claro"?"escuro":"claro";ls("lupa-tema",t);aplicaTema(t);render();};
 meta().then(m=>{$("#st-dados").textContent="Dados até "+dt(m.ultima_cota);$("#st-series").textContent=nf0.format(m.fundos)+" fundos · "+nf0.format(m.com_serie_diaria||0)+" séries diárias";
-  $("#rodape").textContent="Fonte: dados abertos da CVM (informe diário, cadastro, extrato de informações) · CDI: "+(m.fontes&&m.fontes.cdi||"—")+" · Ibovespa: "+(m.fontes&&m.fontes.ibov||"—")+" · Demais benchmarks: B3 (Small Caps, IDIV, IFIX), ANBIMA (IMA, IRF-M, IHFA), Ipeadata (IPCA, IGP-M, dólar PTAX) e Yahoo Finance (S&P 500)"+" · Atualizado em "+new Date(m.atualizado).toLocaleString("pt-BR")+" · Site independente, sem vínculo com a CVM · Rentabilidade passada não é garantia de rentabilidade futura · Este site não constitui recomendação de investimento";}).catch(()=>{});
+  $("#rodape").innerHTML='<span title="'+h("Fontes: CVM (informe diário, cadastro, extrato, informes mensais, CDA, documentos) · CDI: "+(m.fontes&&m.fontes.cdi||"—")+" · Ibovespa: "+(m.fontes&&m.fontes.ibov||"—")+" · B3 (Small Caps, IDIV, IFIX, cotações de listados) · ANBIMA (IMA, IRF-M, IHFA) · Ipeadata (IPCA, IGP-M, PTAX) · Yahoo Finance (S&P 500)")+'">Dados públicos da CVM, B3, ANBIMA e Banco Central ⓘ</span> · Atualizado em '+h(new Date(m.atualizado).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}))+' · Site independente · Rentabilidade passada não é garantia de rentabilidade futura · Não é recomendação de investimento';}).catch(()=>{});
 let rz;window.addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(rotaAtual==="compara"||rotaAtual==="fundo")render();},250);});
 acesso().then(carregaPeers).then(()=>meta().then(m=>{REF_DATA=m.ultima_cota;}).catch(()=>{})).then(()=>{liberado=true;render();}).catch(e=>console.error(e));
 })();
