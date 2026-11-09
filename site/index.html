@@ -206,8 +206,7 @@ footer{border-top:1px solid var(--borda);font-size:12px;color:var(--fraco);paddi
       <a href="#/ranking" data-r="ranking">Ranking <kbd>F2</kbd></a>
       <a href="#/compara" data-r="compara">Compara <kbd>F3</kbd></a>
       <a href="#/gestores" data-r="gestores">Gestores <kbd>F4</kbd></a>
-      <a href="#/estruturados" data-r="estruturados">Estruturados <kbd>F5</kbd></a>
-      <a href="#/listados" data-r="listados">Listados <kbd>F6</kbd></a>
+      <!-- Estruturados (F5) e Listados (F6) ocultos por enquanto; o código das telas continua abaixo -->
     </nav>
     <button class="tema" id="sair" type="button" hidden title="Esquecer a senha neste navegador">Sair</button><button class="tema" id="tema" type="button">Tema claro</button>
   </div>
@@ -737,6 +736,7 @@ let rotaAtual="";
 function rota(){const hsh=location.hash.replace(/^#\/?/,"");const i=hsh.indexOf("?");const cam=i<0?hsh:hsh.slice(0,i),qs=i<0?"":hsh.slice(i+1);const p=cam.split("/").map(decodeURIComponent);return{nome:p[0]||"painel",arg:p.slice(1).join("/"),q:new URLSearchParams(qs)};}
 function ir(x){if(location.hash!==x)location.hash=x;else render();}
 let liberado=false;
+const OCULTAS=new Set(["estruturados","listados","listado"]);
 async function render(){
   if(!liberado)return;
   const r=rota();const mudouTela=r.nome!==rotaAtual;rotaAtual=r.nome;
@@ -747,16 +747,14 @@ async function render(){
     else if(r.nome==="ranking")await telaRanking(r);
     else if(r.nome==="gestores")await telaGrupos(r,"gestor");
     else if(r.nome==="administradores")await telaGrupos(r,"admin");
-    else if(r.nome==="estruturados")await telaEstruturados(r);
-    else if(r.nome==="listados")await telaListados(r);
-    else if(r.nome==="listado")await telaListado(r);
+    else if(OCULTAS.has(r.nome)){location.replace("#/painel");return;}
     else if(r.nome==="fundo")await telaFundo(r);
     else await telaCompara(r);
   }catch(e){console.error(e);app.innerHTML='<section class="painel aviso"><div class="cab">Erro</div><div class="corpo">Não foi possível carregar os dados: '+h(e.message)+'</div></section>';}
 }
 window.addEventListener("hashchange",render);
 document.addEventListener("keydown",e=>{
-  const mapa={F1:"#/painel",F2:"#/ranking",F3:"#/compara",F4:"#/gestores",F5:"#/estruturados",F6:"#/listados"};
+  const mapa={F1:"#/painel",F2:"#/ranking",F3:"#/compara",F4:"#/gestores"};
   if(mapa[e.key]){e.preventDefault();ir(mapa[e.key]);}
 });
 
@@ -814,7 +812,7 @@ async function telaCompara(r){
   $("#cmp-range").textContent=(inis.length?dt(inis[0]):ini?dt(ini):"início")+" → "+dt(fim);
   const rotJ=st.de||st.ate?"período":"janela "+(JANELAS.find(x=>x[0]===st.j)||[0,""])[1];
   let html="";
-  if(semDiario.length)html+='<section class="painel aviso"><div class="cab">Informação não disponível</div><div class="corpo"><div><span style="color:var(--aviso)">Alguns fundos escolhidos não publicam informe diário.</span><br>'+semDiario.map(n=>"· "+h(n)).join("<br>")+'<br><br><span class="fraco">FIDC, FII, FIP e Fiagro reportam por documento periódico mensal, não por cota diária. O que existe deles (patrimônio, cotistas, situação) está na ficha de cada fundo e na tela </span><a href="#/estruturados" style="color:var(--ciano)">F5 ESTRUTURADOS</a>.</div></div></section>';
+  if(semDiario.length)html+='<section class="painel aviso"><div class="cab">Informação não disponível</div><div class="corpo"><div><span style="color:var(--aviso)">Alguns fundos escolhidos não publicam informe diário.</span><br>'+semDiario.map(n=>"· "+h(n)).join("<br>")+'<br><br><span class="fraco">FIDC, FII, FIP e Fiagro reportam por documento periódico mensal, não por cota diária. O que existe deles (patrimônio, cotistas, situação) está na ficha de cada fundo.</span></div></div></section>';
   html+='<section class="painel"><div class="cab">Rentabilidade acumulada · '+h(rotJ)+(series.length?'<span class="linha">'+seletorCesta("cmp-cst")+botoesExportar("cmp-x")+'</span>':"")+'</div><div class="corpo"><div class="grafico" id="cmp-g"></div><div id="cmp-leg"></div></div></section>';
   if(series.length)html+='<section class="painel"><div class="cab">Tabela comparativa<span class="sub">melhor da linha em âmbar sublinhado</span></div><div class="tw"><table id="cmp-t"></table></div></section>';
   if(series.length>1)html+='<section class="painel"><div class="cab">Matriz de correlação<span class="sub">retornos diários das datas em que ambos publicaram</span></div><div class="tw"><table class="mapa" id="cmp-c"></table></div></section>';
@@ -983,7 +981,7 @@ async function telaRanking(){
   const F=filtrosPadrao();try{Object.assign(F,JSON.parse(ls("lupa-rk")||"{}"));}catch(e){}F.serie="todas";
   if(!incluirCancelados&&F.sit==="Cancelada")F.sit="";
   app.innerHTML='<div id="rk" style="display:grid;gap:10px"></div>';
-  montarRanking($("#rk"),{lista,F,titulo:"Filtros · só fundos líquidos (estruturados ficam em F5)",semSerie:true,investidor:true,aoMudar:x=>{const{usaInv,...y}=x;ls("lupa-rk",JSON.stringify(y));}});
+  montarRanking($("#rk"),{lista,F,titulo:"Filtros · só fundos líquidos (sem estruturados)",semSerie:true,investidor:true,aoMudar:x=>{const{usaInv,...y}=x;ls("lupa-rk",JSON.stringify(y));}});
 }
 
 // ================================================================ F3 GESTORES / F4 ADMINISTRADORES
