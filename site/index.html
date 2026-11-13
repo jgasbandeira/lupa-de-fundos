@@ -194,12 +194,85 @@ tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--ambar)}
 footer{border-top:1px solid var(--borda);font-size:12px;color:var(--fraco);padding-block:14px}
 @media (max-width:900px){.nav a kbd{display:none}.nav a{padding:0 8px}}
 @media (max-width:700px){.wrap{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}.topo .linha{gap:6px;padding-block:8px}.nav{order:3;width:100%;overflow-x:auto;flex-wrap:nowrap}.nav a{padding:6px 10px;border-bottom-width:2px}.drop button{grid-template-columns:1fr}.drop .t{text-align:left}td.nome{min-width:200px;max-width:260px}.status .dir{margin-left:0}.tile .v{font-size:19px}.tiles{grid-template-columns:repeat(2,1fr)}main{gap:12px;padding-block:12px}.painel>.corpo{padding:12px}.painel>.cab{padding:10px 12px}}
+
+/* ===== menu lateral e guia de uso ===== */
+.menu-b{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--borda2);background:var(--sup);color:var(--texto);border-radius:8px;padding:5px 11px 5px 9px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;line-height:1.4}
+.menu-b:hover{background:var(--sup2)}
+.menu-b svg{width:16px;height:16px}
+body.bloqueado #menu-b,body.bloqueado #aj-top,body.bloqueado #st-ajuda{visibility:hidden}
+.aj-top{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--fraco);padding:5px 10px;border-radius:8px;white-space:nowrap}
+.aj-top:hover{color:var(--ambar);background:var(--sup2)}
+.aj-top svg{width:16px;height:16px}
+.aj-top~.tema{margin-left:6px}
+.st-ajuda{display:inline-flex;align-items:center;gap:5px;color:var(--ambar);font-weight:500}
+.st-ajuda svg{width:13px;height:13px}
+.gv-fundo{position:fixed;inset:0;background:rgba(10,15,25,.38);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.gv-fundo.on{opacity:1;pointer-events:auto}
+.gaveta{position:fixed;top:0;left:0;bottom:0;width:min(340px,88vw);background:var(--sup);border-right:1px solid var(--borda);z-index:41;transform:translateX(-102%);visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s;display:flex;flex-direction:column;overflow-y:auto;box-shadow:0 12px 32px rgba(16,24,40,.2)}
+.gaveta.on{transform:none;visibility:visible;transition:transform .22s ease}
+.gv-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px 0 18px;min-height:56px;border-bottom:1px solid var(--borda)}
+.gv-x{border:0;background:none;font-size:24px;line-height:1;color:var(--fraco);cursor:pointer;padding:4px 8px;border-radius:8px}
+.gv-x:hover{background:var(--sup2);color:var(--texto)}
+.gv-sec{padding:10px 8px;border-bottom:1px solid var(--borda);display:grid;gap:1px}
+.gv-tit{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--fraco);padding:4px 10px 6px}
+.gv-it{display:flex;gap:12px;align-items:flex-start;padding:9px 10px;border-radius:8px;color:var(--texto);width:100%;border:0;background:none;font:inherit;text-align:left;cursor:pointer}
+.gv-it:hover{background:var(--sup2)}
+.gv-it.on{background:var(--ambar2)}
+.gv-it.on b{color:var(--ambar)}
+.gv-it>svg{flex:none;width:18px;height:18px;margin-top:1px;color:var(--ambar)}
+.gv-it>span{display:grid;gap:1px;flex:1;min-width:0}
+.gv-it b{font-weight:600;font-size:14px}
+.gv-it small{font-size:12px;color:var(--fraco);line-height:1.4}
+.gv-it kbd,.aj kbd,.bv kbd{font:inherit;font-size:10.5px;color:var(--fraco);border:1px solid var(--borda2);border-bottom-width:2px;border-radius:4px;padding:0 5px;line-height:16px;background:var(--sup);white-space:nowrap}
+.gv-it>kbd{margin-top:2px}
+.gv-rod{padding:14px 18px;font-size:12px;color:var(--fraco);margin-top:auto;line-height:1.5}
+.aj{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:start}
+.aj-idx{position:sticky;top:104px;display:grid;gap:2px;padding:10px 8px}
+.aj-idx a{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;color:var(--fraco);font-size:13.5px;font-weight:500}
+.aj-idx a svg{width:15px;height:15px;flex:none}
+.aj-idx a:hover{color:var(--texto);background:var(--sup2)}
+.aj-idx a.on{color:var(--ambar);background:var(--ambar2)}
+.aj-cont{display:grid;gap:16px;min-width:0}
+.aj-cont>section{scroll-margin-top:104px}
+.aj-hero{padding:24px 24px 22px;display:grid;gap:8px}
+.aj-hero h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--texto)}
+.aj-hero p{margin:0;color:var(--fraco);font-size:14.5px;line-height:1.6;max-width:760px}
+.aj-h{display:inline-flex;align-items:center;gap:9px}
+.aj-h svg{width:18px;height:18px;color:var(--ambar)}
+.aj-txt{font-size:14px;line-height:1.65;color:var(--texto)}
+.aj-txt p{margin:0}
+.aj-txt ul,.aj-txt ol{margin:0;padding-left:20px;display:grid;gap:5px}
+.aj-txt .fraco{color:var(--fraco)}
+.aj-txt h3{margin:0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--fraco)}
+.aj-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.passos{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.passo{border:1px solid var(--borda);border-radius:10px;padding:14px 14px 16px;background:var(--sup2);display:grid;gap:6px;align-content:start;font-size:13.5px;line-height:1.55;color:var(--fraco)}
+.passo b{color:var(--texto);font-size:14px}
+.passo .n{width:26px;height:26px;border-radius:50%;background:var(--ambar);color:var(--acento-txt);display:grid;place-items:center;font-weight:600;font-size:13px}
+details.tarefa{border:1px solid var(--borda);border-radius:10px;background:var(--sup)}
+details.tarefa>summary{cursor:pointer;padding:11px 14px;font-weight:600;font-size:14px;list-style:none;display:flex;align-items:center;gap:10px}
+details.tarefa>summary::-webkit-details-marker{display:none}
+details.tarefa>summary::before{content:"▸";color:var(--ambar);font-size:12px;transition:transform .15s}
+details.tarefa[open]>summary::before{transform:rotate(90deg)}
+details.tarefa>ol{padding:0 16px 14px 40px;margin:0;display:grid;gap:5px}
+.glos{display:grid;grid-template-columns:minmax(130px,190px) minmax(0,1fr);margin:0}
+.glos dt,.glos dd{margin:0;padding:10px 0;border-top:1px solid var(--borda)}
+.glos dt{font-weight:600;padding-right:14px}
+.glos dd{color:var(--fraco)}
+.glos dt:first-of-type,.glos dt:first-of-type+dd{border-top:0}
+.atalhos{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center}
+.cor-q{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px}
+.bv .passos{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.bv>.cab{background:color-mix(in srgb,var(--ambar) 6%,var(--sup))}
+@media (max-width:900px){.aj{grid-template-columns:1fr}.aj-idx{position:static;display:flex;flex-wrap:wrap;gap:4px;padding:8px}.aj-idx a{padding:5px 9px;font-size:13px}.aj-idx a svg{display:none}}
+@media (max-width:700px){#nav{display:none}#tema,#sair{display:none}.topo .linha{flex-wrap:nowrap}.logo{min-width:0;overflow:hidden}.aj-top span{display:none}.menu-b span{display:none}.glos{grid-template-columns:1fr}.glos dd{border-top:0;padding-top:0}.aj-hero{padding:18px 16px}.aj-hero h1{font-size:20px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <header class="topo">
   <div class="wrap linha">
+    <button class="menu-b" id="menu-b" type="button" aria-label="Abrir o menu" aria-expanded="false" aria-controls="gaveta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Menu</span></button>
     <a class="logo" href="#/">Comparador <b>de Fundos</b></a>
     <nav class="nav" id="nav">
       <a href="#/painel" data-r="painel">Painel <kbd>F1</kbd></a>
@@ -208,10 +281,13 @@ footer{border-top:1px solid var(--borda);font-size:12px;color:var(--fraco);paddi
       <a href="#/gestores" data-r="gestores">Gestores <kbd>F4</kbd></a>
       <!-- Estruturados (F5) e Listados (F6) ocultos por enquanto; o código das telas continua abaixo -->
     </nav>
+    <a class="aj-top" id="aj-top" href="#/ajuda" title="Guia do site (tecla ?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.5-2.7 4.1"/><path d="M12 17.6h.01"/></svg><span>Como usar</span></a>
     <button class="tema" id="sair" type="button" hidden title="Esquecer a senha neste navegador">Sair</button><button class="tema" id="tema" type="button">Tema claro</button>
   </div>
-  <div class="wrap status"><span class="fonte">CVM · B3 · ANBIMA · BCB</span><span id="st-dados">Dados até —</span><span class="dir" id="st-series">—</span></div>
+  <div class="wrap status"><span class="fonte">CVM · B3 · ANBIMA · BCB</span><span id="st-dados">Dados até —</span><span class="dir" id="st-series">—</span><a class="st-ajuda" id="st-ajuda" href="#/ajuda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.5-2.7 4.1"/><path d="M12 17.6h.01"/></svg><span>Como usar esta tela</span></a></div>
 </header>
+<div class="gv-fundo" id="gv-fundo"></div>
+<aside class="gaveta" id="gaveta" aria-label="Menu" aria-hidden="true"></aside>
 <main class="wrap" id="app"><div class="carregando">Carregando…</div></main>
 <footer class="wrap" id="rodape">Dados públicos da CVM, B3, ANBIMA e Banco Central · Rentabilidade passada não é garantia de rentabilidade futura · Não é recomendação de investimento</footer>
 
@@ -742,6 +818,7 @@ async function render(){
   const r=rota();const mudouTela=r.nome!==rotaAtual;rotaAtual=r.nome;
   document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.r===r.nome||(a.dataset.r==="gestores"&&r.nome==="administradores")||(a.dataset.r==="listados"&&r.nome==="listado")));
   if(mudouTela)window.scrollTo(0,0);
+  fecharMenu();marcaMenu(r.nome,r.q);
   try{
     if(r.nome==="painel")await telaPainel(r);
     else if(r.nome==="ranking")await telaRanking(r);
@@ -749,7 +826,9 @@ async function render(){
     else if(r.nome==="administradores")await telaGrupos(r,"admin");
     else if(OCULTAS.has(r.nome)){location.replace("#/painel");return;}
     else if(r.nome==="fundo")await telaFundo(r);
+    else if(r.nome==="ajuda")await telaAjuda(r);
     else await telaCompara(r);
+    if(r.nome==="painel")quadroBoasVindas();
   }catch(e){console.error(e);app.innerHTML='<section class="painel aviso"><div class="cab">Erro</div><div class="corpo">Não foi possível carregar os dados: '+h(e.message)+'</div></section>';}
 }
 window.addEventListener("hashchange",render);
@@ -794,7 +873,7 @@ async function telaCompara(r){
   $("#cmp-de").value=st.de;$("#cmp-ate").value=st.ate;
   $("#cmp-de").onchange=e=>{st.de=e.target.value;irCompara(st);};$("#cmp-ate").onchange=e=>{st.ate=e.target.value;irCompara(st);};
   const res=$("#cmp-res");
-  if(!st.f.length){res.innerHTML='<section class="painel"><div class="cab">Início</div><div class="corpo"><div>Busque um fundo por nome ou CNPJ para começar. Até 8 lado a lado.<br><span class="fraco">Setas ↑↓ navegam a lista, Enter seleciona. F1 a F5 trocam de tela. No ranking (F2) dá para marcar vários fundos e mandar para cá.</span></div></div></section>';$("#cmp-range").textContent="";return;}
+  if(!st.f.length){res.innerHTML='<section class="painel"><div class="cab">Início</div><div class="corpo"><div>Busque um fundo por nome ou CNPJ para começar. Até 8 lado a lado.<br><span class="fraco">Setas ↑↓ navegam a lista, Enter seleciona. F1 a F4 trocam de tela, e a tecla ? abre o guia. No ranking (F2) dá para marcar vários fundos e mandar para cá.</span></div></div></section>';$("#cmp-range").textContent="";return;}
   res.innerHTML='<div class="carregando">Carregando séries…</div>';
   const fs=await Promise.all(st.f.map(id=>ficha(id).catch(()=>null)));
   const fim=st.ate||m.ultima_cota;let ini=st.de||inicioJanela(fim,st.j);
@@ -1322,6 +1401,154 @@ function desempenhoMensal(c,f){
 // ================================================================ tema e status
 
 const temaBtn=$("#tema");
+// ================================================================ MENU LATERAL E GUIA DE USO
+const IC={
+  painel:'<path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z"/>',
+  ranking:'<path d="M5 20V10M12 20V4M19 20v-7"/>',
+  compara:'<path d="M3 17l5-6 4 3 4-6 5 4"/><path d="M3 21h18"/>',
+  gestores:'<path d="M4 21V7l8-4 8 4v14"/><path d="M9 21v-5h6v5M8 10h.01M12 10h.01M16 10h.01"/>',
+  fundo:'<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
+  ajuda:'<circle cx="12" cy="12" r="9.5"/><path d="M9.3 9.2a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.5-2.7 4.1M12 17.6h.01"/>',
+  passos:'<path d="M5 12l4 4 10-10"/>',
+  tarefas:'<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>',
+  glos:'<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>',
+  tecla:'<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
+  dados:'<ellipse cx="12" cy="5.5" rx="8" ry="2.5"/><path d="M4 5.5v13c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-13M4 12c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5"/>',
+  tema:'<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  sair:'<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>'
+};
+const ico=k=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+IC[k]+'</svg>';
+const TELAS_MENU=[
+  ["painel","Painel","F1","Peer groups da casa, seus favoritos e os grupos que você montou"],
+  ["ranking","Ranking","F2","Todos os fundos líquidos, com filtros e ordenação por qualquer coluna"],
+  ["compara","Compara","F3","Até 8 fundos lado a lado contra CDI, Ibovespa e outros índices"],
+  ["gestores","Gestores","F4","Patrimônio, market share e captação de cada gestora e administradora"]
+];
+const gaveta=$("#gaveta"),gvFundo=$("#gv-fundo"),menuB=$("#menu-b");
+gaveta.innerHTML='<div class="gv-cab"><span class="logo">Comparador <b>de Fundos</b></span><button type="button" class="gv-x" id="gv-x" aria-label="Fechar o menu">×</button></div>'+
+  '<nav class="gv-sec" aria-label="Telas"><div class="gv-tit">Telas</div>'+TELAS_MENU.map(([k,n,f,d])=>'<a class="gv-it" href="#/'+k+'" data-r="'+k+'">'+ico(k)+'<span><b>'+n+'</b><small>'+d+'</small></span><kbd>'+f+'</kbd></a>').join("")+'</nav>'+
+  '<div class="gv-sec"><div class="gv-tit">Aprenda a usar</div>'+
+    [["ajuda","","Como usar o site","Comece por aqui: o site em 4 passos e o que cada tela faz","?"],["tarefas","tarefas","Passo a passo","Comparar com o CDI, achar os melhores, montar um peer group…",""],["glos","glossario","Glossário","O que significa MTD, YTD, % do CDI, Sharpe, quartil…",""],["tecla","atalhos","Atalhos de teclado","Troque de tela sem tirar a mão do teclado",""]]
+    .map(([i,s,n,d,k])=>'<a class="gv-it" href="#/ajuda'+(s?"?s="+s:"")+'" data-aj="'+(s||"inicio")+'">'+ico(i)+'<span><b>'+n+'</b><small>'+d+'</small></span>'+(k?'<kbd>'+k+'</kbd>':"")+'</a>').join("")+'</div>'+
+  '<div class="gv-sec"><div class="gv-tit">Preferências</div><button type="button" class="gv-it" id="gv-tema">'+ico("tema")+'<span><b id="gv-tema-t">Tema</b><small>Alterna entre o fundo claro e o escuro</small></span></button><button type="button" class="gv-it" id="gv-sair" hidden>'+ico("sair")+'<span><b>Sair</b><small>Esquece a senha neste navegador</small></span></button></div>'+
+  '<div class="gv-rod" id="gv-rod">Dados públicos da CVM, B3, ANBIMA e Banco Central. Não é recomendação de investimento.</div>';
+let menuFoco=null;
+function abrirMenu(){menuFoco=document.activeElement;gaveta.classList.add("on");gvFundo.classList.add("on");gaveta.setAttribute("aria-hidden","false");menuB.setAttribute("aria-expanded","true");
+  $("#gv-tema-t").textContent=temaBtn.textContent;$("#gv-sair").hidden=$("#sair").hidden;
+  const sd=$("#st-dados");if(sd&&/\d/.test(sd.textContent))$("#gv-rod").textContent=sd.textContent+". Dados públicos da CVM, B3, ANBIMA e Banco Central. Não é recomendação de investimento.";
+  setTimeout(()=>{const a=gaveta.querySelector(".gv-it.on")||$("#gv-x");a&&a.focus();},60);}
+function fecharMenu(){if(!gaveta.classList.contains("on"))return;gaveta.classList.remove("on");gvFundo.classList.remove("on");gaveta.setAttribute("aria-hidden","true");menuB.setAttribute("aria-expanded","false");if(menuFoco&&menuFoco.focus)menuFoco.focus();}
+menuB.onclick=()=>gaveta.classList.contains("on")?fecharMenu():abrirMenu();
+gvFundo.onclick=fecharMenu;$("#gv-x").onclick=fecharMenu;
+gaveta.addEventListener("click",e=>{if(e.target.closest("a.gv-it"))fecharMenu();});
+$("#gv-tema").onclick=()=>{temaBtn.click();$("#gv-tema-t").textContent=temaBtn.textContent;};
+$("#gv-sair").onclick=()=>{fecharMenu();$("#sair").click();};
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&gaveta.classList.contains("on")){e.preventDefault();fecharMenu();return;}
+  const t=e.target,digitando=t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+  if(e.key==="?"&&!digitando&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&liberado){e.preventDefault();ir("#/ajuda");}
+});
+function marcaMenu(nome,q){
+  gaveta.querySelectorAll("a.gv-it[data-r]").forEach(a=>a.classList.toggle("on",a.dataset.r===nome||(a.dataset.r==="gestores"&&nome==="administradores")));
+  gaveta.querySelectorAll("a.gv-it[data-aj]").forEach(a=>a.classList.toggle("on",nome==="ajuda"&&a.dataset.aj===((q&&q.get("s"))||"inicio")));
+  const sec={painel:"painel",ranking:"ranking",compara:"compara",gestores:"gestores",administradores:"gestores",fundo:"fundo"}[nome];
+  const sa=$("#st-ajuda");sa.hidden=nome==="ajuda";sa.href="#/ajuda"+(sec?"?s="+sec:"");sa.querySelector("span").textContent=sec?"Como usar esta tela":"Como usar o site";
+}
+
+// Quadro de boas-vindas no topo do Painel (some depois de dispensado; volta pelo guia)
+function quadroBoasVindas(){
+  if(ls("lupa-bv")==="0"||$("#bv"))return;
+  const el=document.createElement("section");el.className="painel bv";el.id="bv";
+  el.innerHTML='<div class="cab"><span class="aj-h">'+ico("ajuda")+'Primeira vez aqui? O site em 4 passos</span><span class="linha"><a class="btn" href="#/ajuda">Ver o guia completo</a><button type="button" class="btn" id="bv-x">Entendi, esconder</button></span></div><div class="corpo">'+passosHTML()+'</div>';
+  app.prepend(el);
+  $("#bv-x").onclick=()=>{ls("lupa-bv","0");el.remove();toast("Quadro escondido. Ele volta pelo menu, em Como usar o site.");};
+}
+function passosHTML(){
+  return'<div class="passos">'+
+    '<div class="passo"><span class="n">1</span><b>Encontre</b><span>No <a href="#/ranking">Ranking</a> <kbd>F2</kbd>, filtre por classe e janela e clique no título de uma coluna para ordenar.</span></div>'+
+    '<div class="passo"><span class="n">2</span><b>Compare</b><span>Marque os fundos e clique em <b>Comparar ▸</b>, ou busque direto na tela <a href="#/compara">Compara</a> <kbd>F3</kbd>. Até 8 fundos contra o CDI e outros índices.</span></div>'+
+    '<div class="passo"><span class="n">3</span><b>Aprofunde</b><span>Clique no nome de um fundo para abrir a ficha: números-chave, gráfico, carteira e cadastro.</span></div>'+
+    '<div class="passo"><span class="n">4</span><b>Guarde</b><span>A estrela ☆ marca favoritos, e os peer groups juntam os fundos que você acompanha. Tudo aparece no <a href="#/painel">Painel</a> <kbd>F1</kbd>.</span></div>'+
+  '</div>';
+}
+
+async function telaAjuda(r){
+  const secs=[["inicio","Comece aqui","passos"],["painel","Painel","painel"],["ranking","Ranking","ranking"],["compara","Compara","compara"],["fundo","Ficha do fundo","fundo"],["gestores","Gestores","gestores"],["tarefas","Passo a passo","tarefas"],["glossario","Glossário","glos"],["atalhos","Atalhos","tecla"],["dados","De onde vêm os dados","dados"]];
+  const cab=(id,ic,tit,link,rot)=>'<section class="painel" id="aj-'+id+'"><div class="cab"><span class="aj-h">'+ico(ic)+h(tit)+'</span>'+(link?'<a class="btn" href="'+link+'">'+rot+' ▸</a>':"")+'</div><div class="corpo aj-txt">';
+  const fim='</div></section>';
+  const tarefa=(t,passos)=>'<details class="tarefa"><summary>'+t+'</summary><ol>'+passos.map(p=>'<li>'+p+'</li>').join("")+'</ol></details>';
+  const G=[
+    ["Dia","Variação da cota no último dia útil com dados."],
+    ["MTD","<i>Month to date</i>: rentabilidade do mês corrente, do último dia do mês anterior até a data mais recente."],
+    ["YTD","<i>Year to date</i>: rentabilidade do ano corrente, do último dia do ano anterior até a data mais recente."],
+    ["12M · 24M · 36M","Rentabilidade acumulada nos últimos 12, 24 ou 36 meses. Passe o mouse sobre o título da coluna para ver as datas exatas."],
+    ["% do CDI","Quanto o fundo rendeu em relação ao CDI no mesmo período. 110% quer dizer que rendeu 10% a mais que o CDI; um valor negativo, que o fundo perdeu dinheiro."],
+    ["Volatilidade","Quanto a cota oscila, medida pelo desvio-padrão dos retornos diários e anualizada. Quanto maior, mais sobe e desce."],
+    ["Sharpe","Retorno acima do CDI dividido pela volatilidade, ou seja, quanto o fundo entregou por unidade de risco. Acima de 1 é considerado bom; negativo, rendeu menos que o CDI."],
+    ["PL","Patrimônio líquido: o total de recursos do fundo na data mais recente."],
+    ["Captação líquida","Aplicações menos resgates informados à CVM. Positiva: entrou mais dinheiro do que saiu."],
+    ["Market share","Fatia do patrimônio dos fundos líquidos para investidor que está com a gestora ou a administradora."],
+    ["Benchmark","Índice de referência para comparar o fundo: CDI, Ibovespa, IMA-B, IFIX, IPCA + taxa e outros."],
+    ["Peer group","Grupo de fundos parecidos, comparados entre si. Os da casa são fixos; os seus você cria e edita no Painel."],
+    ["Quartil",'Posição do fundo dentro do peer group naquela coluna. <span class="cor-q" style="background:color-mix(in srgb,var(--pos) 22%,var(--sup))"></span>verde = entre os 25% melhores; <span class="cor-q" style="background:color-mix(in srgb,var(--neg) 22%,var(--sup))"></span>vermelho = entre os 25% piores.'],
+    ["Correlação","De −1 a 1: quanto dois fundos sobem e descem juntos. Perto de 1, andam juntos; perto de 0, de forma independente."],
+    ["Série mensal","Fundos marcados com <span class=\"tag\">mensal</span> só informam dados uma vez por mês, então não têm Dia nem gráfico diário."],
+    ["Fundo para investidor","Fundo que de fato capta de investidores. Ficam de fora exclusivos, masters e fundos de um único cotista, que repetiriam o mesmo dinheiro."],
+    ["Sem cota recente","O fundo segue em funcionamento na CVM, mas parou de informar a cota diária."]
+  ];
+  app.innerHTML='<div class="aj"><nav class="painel aj-idx" aria-label="Seções do guia">'+secs.map(([id,t,ic])=>'<a href="#/ajuda?s='+id+'" data-s="'+id+'">'+ico(ic)+h(t)+'</a>').join("")+'</nav><div class="aj-cont">'+
+  '<section class="painel aj-hero" id="aj-inicio"><h1>Como usar o Comparador de Fundos</h1><p>O site reúne a rentabilidade, o risco, o patrimônio e a captação dos fundos brasileiros a partir de dados públicos da CVM, e compara tudo com o CDI e outros índices. Abaixo, o caminho mais curto para tirar proveito dele, o que cada tela faz e o significado de cada número.</p>'+passosHTML()+
+    '<div class="linha" style="gap:8px;margin-top:4px"><a class="btn prim" href="#/ranking">Começar pelo Ranking ▸</a><a class="btn" href="#/compara">Comparar fundos ▸</a>'+(ls("lupa-bv")==="0"?'<button type="button" class="btn" id="aj-bv">Mostrar estes passos no Painel de novo</button>':"")+'</div></section>'+
+
+  cab("painel","painel","Painel  ·  F1","#/painel","Abrir o Painel")+
+    '<p>É a tela inicial, o seu ponto de acompanhamento do dia a dia.</p><div class="aj-2">'+
+    '<div><h3>Peer groups da casa</h3><ul><li>Grupos de fundos comparáveis, montados pela casa e iguais para todos. Clique na aba de cada grupo.</li><li>Os fundos da XP aparecem destacados em amarelo.</li><li>As cores mostram o quartil: <span class="cor-q" style="background:color-mix(in srgb,var(--pos) 22%,var(--sup))"></span>verde é o quarto de cima, <span class="cor-q" style="background:color-mix(in srgb,var(--neg) 22%,var(--sup))"></span>vermelho o de baixo.</li><li><b>Duplicar como meu</b> copia o grupo para os seus peer groups, onde você pode editar.</li><li>Clique no título do quadro para recolher ou abrir.</li></ul></div>'+
+    '<div><h3>Meu painel</h3><ul><li><b>Favoritos</b>: os fundos em que você clicou na estrela ☆, em qualquer tela.</li><li><b>Meus peer groups</b>: crie em <b>+ Novo peer group</b>, dê um nome e adicione fundos pela busca.</li><li>Tudo fica salvo só neste navegador. Para levar a outro computador, use <b>Exportar painel</b> e depois <b>Importar painel</b> do outro lado.</li><li><b>Copiar link</b> de um peer group gera um endereço que outra pessoa abre e salva no painel dela.</li></ul></div></div>'+fim+
+
+  cab("ranking","ranking","Ranking  ·  F2","#/ranking","Abrir o Ranking")+
+    '<p>Lista todos os fundos líquidos (com cota diária) da CVM. Fundos estruturados, como FII, FIDC e FIP, ficam de fora.</p><div class="aj-2">'+
+    '<div><h3>Filtrar</h3><ul><li><b>Busca</b>: digite parte do nome ou o CNPJ.</li><li><b>Universo</b>: todos, só abertos ou só exclusivos.</li><li><b>Classe</b> e <b>Situação</b>: restringem o tipo de fundo e se ele está ativo.</li><li><b>Janela</b>: escolhe o período de Ret, % CDI, Vol e Sharpe (MTD, YTD, 12M, 24M ou 36M).</li><li><b>Só fundos para investidor</b>: tira exclusivos, masters e fundos de um cotista, que repetem o mesmo produto.</li><li><b>PL mínimo</b>: esconde fundos pequenos.</li></ul></div>'+
+    '<div><h3>Ordenar e agir</h3><ul><li>Clique no título de qualquer coluna para ordenar; clique de novo para inverter.</li><li>Marque a caixa à esquerda dos fundos e clique em <b>Comparar ▸</b> ou em <b>Adicionar ao peer group…</b></li><li>A lista mostra 200 fundos por vez; <b>Mostrar mais</b> carrega o resto.</li><li>Os filtros ficam guardados para a próxima visita.</li></ul></div></div>'+fim+
+
+  cab("compara","compara","Compara  ·  F3","#/compara","Abrir o Compara")+
+    '<div class="aj-2"><div><h3>Montar a comparação</h3><ul><li>Busque por nome ou CNPJ e escolha até 8 fundos. O × de cada fundo o remove.</li><li><b>Janela</b>: de MTD a MAX, que começa no início do fundo mais novo.</li><li><b>Período</b>: escolha datas exatas de início e fim.</li><li><b>Benchmarks</b>: o CDI já vem marcado. Ligue e desligue outros índices: Ibovespa, IMA, IFIX, IPCA + taxa, S&amp;P 500…</li></ul></div>'+
+    '<div><h3>O que aparece</h3><ul><li><b>Rentabilidade acumulada</b>: gráfico com fundos e índices partindo do zero.</li><li><b>Tabela comparativa</b>: retorno, % do CDI, volatilidade, Sharpe, drawdown (a maior queda) e outros indicadores. O melhor de cada linha fica destacado.</li><li><b>Matriz de correlação</b>: mostra quais fundos andam juntos.</li><li>O endereço da página guarda a comparação inteira: copie a barra do navegador para enviar a alguém.</li></ul></div></div>'+fim+
+
+  cab("fundo","fundo","Ficha do fundo","","")+
+    '<p>Abre ao clicar no nome de qualquer fundo, em qualquer tela.</p><div class="aj-2">'+
+    '<div><h3>Topo</h3><ul><li>CNPJ, classe, gestora, situação e data de início.</li><li>Números-chave: rentabilidade 12M, % do CDI, YTD, volatilidade, Sharpe, patrimônio, captação e taxa de administração.</li><li>Botões para favoritar ☆, comparar, adicionar a um peer group e abrir o regulamento na CVM.</li></ul></div>'+
+    '<div><h3>Abas</h3><ul><li><b>Desempenho</b>: gráfico na janela escolhida, indicadores, fundo contra benchmarks (em <b>Comparar com</b>), patrimônio, cotistas, captação e retorno mês a mês.</li><li><b>Carteira</b>: o que o fundo tem, pela última carteira entregue à CVM.</li><li><b>Cadastro</b>: dados cadastrais, histórico do fundo e documentos na CVM.</li></ul></div></div>'+fim+
+
+  cab("gestores","gestores","Gestores  ·  F4","#/gestores","Abrir Gestores")+
+    '<ul><li>Ranking das gestoras (ou das administradoras, na outra aba) por patrimônio, market share e captação líquida do mês e de 12 meses.</li><li><b>12M ÷ PL</b> mostra o quanto a captação do ano representa do tamanho da casa, o que ajuda a comparar casas grandes e pequenas.</li><li>Clique em uma gestora para ver a captação mês a mês, a evolução do patrimônio e os fundos que mais puxaram o movimento.</li><li>Só entram fundos líquidos para investidor, para não somar o mesmo dinheiro duas vezes.</li></ul>'+fim+
+
+  cab("tarefas","tarefas","Passo a passo","","")+
+    tarefa("Comparar um fundo com o CDI",["Aperte <kbd>F3</kbd> ou abra <b>Compara</b> no menu.","Digite o nome ou o CNPJ do fundo e escolha na lista.","O CDI já vem marcado. Escolha a janela, por exemplo <b>12M</b>.","Leia o <b>% do CDI</b> na tabela comparativa."])+
+    tarefa("Achar os melhores fundos de uma categoria",["Aperte <kbd>F2</kbd> para abrir o Ranking.","Escolha a <b>Classe</b> (por exemplo, Multimercado) e marque <b>Só fundos para investidor</b>.","Escolha a <b>Janela</b> e, se quiser, um <b>PL mínimo</b>.","Clique no título <b>Ret</b> ou <b>Sharpe</b> para ordenar do maior para o menor."])+
+    tarefa("Comparar vários fundos de uma vez",["No Ranking, no Painel ou nos Favoritos, marque a caixa ao lado de cada fundo.","Clique em <b>Comparar ▸</b>. Até 8 fundos vão juntos para a tela Compara."])+
+    tarefa("Montar o seu peer group",["No Painel, clique em <b>+ Novo peer group</b> e dê um nome.","Use a busca dentro do grupo para adicionar fundos.","Outra forma: marque fundos no Ranking e escolha o grupo em <b>Adicionar ao peer group…</b>","Para partir de um grupo da casa, use <b>Duplicar como meu</b>."])+
+    tarefa("Enviar uma análise para alguém",["Peer group: clique em <b>Copiar link</b> e mande o link.","Comparação: copie o endereço da barra do navegador; ele já guarda os fundos, a janela e os benchmarks.","Quem receber vai precisar da senha do site."])+
+    tarefa("Levar o painel para outro computador",["No Painel, clique em <b>Exportar painel</b>, que baixa um arquivo.","No outro computador, clique em <b>Importar painel</b> e escolha esse arquivo."])+
+    tarefa("Baixar os dados para o Excel",["Procure o botão <b>Exportar CSV</b> no canto dos quadros: peer groups, comparação, ficha e gestores.","O arquivo abre direto no Excel."])+
+    tarefa("Ver o que o fundo tem na carteira",["Abra a ficha do fundo clicando no nome dele.","Clique na aba <b>Carteira</b>."])+fim+
+
+  cab("glossario","glos","Glossário","","")+'<dl class="glos">'+G.map(([t,d])=>'<dt>'+t+'</dt><dd>'+d+'</dd>').join("")+'</dl>'+fim+
+
+  cab("atalhos","tecla","Atalhos de teclado","","")+'<div class="atalhos">'+
+    [["F1","Painel"],["F2","Ranking"],["F3","Compara"],["F4","Gestores"],["?","Abre este guia"],["↑ ↓ e Enter","Navegam e escolhem na lista da busca"],["Esc","Fecha o menu"]].map(([k,d])=>'<span>'+k.split(" e ").map(x=>'<kbd>'+x+'</kbd>').join(" e ")+'</span><span>'+d+'</span>').join("")+'</div>'+fim+
+
+  cab("dados","dados","De onde vêm os dados","","")+
+    '<ul><li>Cotas, patrimônio, captação e cotistas: informe diário dos fundos na <b>CVM</b>. Cadastro, carteiras e documentos também vêm da CVM.</li><li>Índices: CDI do <b>Banco Central</b>, Ibovespa e IFIX da <b>B3</b>, IMA, IRF-M e IHFA da <b>ANBIMA</b>, IPCA e IGP-M do Ipeadata.</li><li>A base é atualizada todos os dias, às 7h30 e às 20h30. A data dos dados aparece logo abaixo do menu.</li><li>Rentabilidade passada não é garantia de rentabilidade futura. Este site não é recomendação de investimento.</li></ul>'+fim+
+  '</div></div>';
+  const bvb=$("#aj-bv");if(bvb)bvb.onclick=()=>{ls("lupa-bv","1");ir("#/painel");};
+  const idx=app.querySelector(".aj-idx");
+  idx.onclick=e=>{const a=e.target.closest("a[data-s]");if(!a)return;e.preventDefault();history.replaceState(null,"","#/ajuda?s="+a.dataset.s);marcaMenu("ajuda",new URLSearchParams("s="+a.dataset.s));vai(a.dataset.s,true);};
+  const marca=id=>idx.querySelectorAll("a").forEach(a=>a.classList.toggle("on",a.dataset.s===id));
+  function vai(id,suave){const el=$("#aj-"+id);if(!el)return;marca(id);el.scrollIntoView({behavior:suave?"smooth":"auto",block:"start"});}
+  const alvo=r.q.get("s");if(alvo&&alvo!=="inicio")requestAnimationFrame(()=>vai(alvo,false));else{marca("inicio");window.scrollTo(0,0);}
+  if("IntersectionObserver" in window){const io=new IntersectionObserver(es=>{const v=es.filter(x=>x.isIntersecting).sort((a,b)=>a.boundingClientRect.top-b.boundingClientRect.top)[0];if(v)marca(v.target.id.slice(3));},{rootMargin:"-110px 0px -60% 0px"});app.querySelectorAll(".aj-cont>section").forEach(x=>io.observe(x));}
+}
+
 function aplicaTema(t){document.documentElement.setAttribute("data-tema",t==="claro"?"claro":"escuro");temaBtn.textContent=t==="claro"?"Tema escuro":"Tema claro";}
 aplicaTema(ls("lupa-tema")||"claro");
 temaBtn.onclick=()=>{const t=document.documentElement.getAttribute("data-tema")==="claro"?"escuro":"claro";ls("lupa-tema",t);aplicaTema(t);render();};
