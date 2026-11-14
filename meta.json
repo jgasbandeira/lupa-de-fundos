@@ -1,0 +1,31 @@
+{
+ "atualizado": "2026-11-14T03:33:05.057Z",
+ "ultima_cota": "2026-11-12",
+ "fundos": 38012,
+ "com_serie_diaria": 26844,
+ "so_cadastro": 11168,
+ "fundos_ativos": 33899,
+ "inicio": "2000-01-03",
+ "cotas": 47054499,
+ "tamanho_mb": 406,
+ "fontes": {
+  "cdi": "Ipeadata: Selic over diária calibrada pelo CDI mensal",
+  "ibov": "B3 (IBOV)",
+  "IPCA": "Ipeadata (PRECOS12_IPCAG12), variação mensal distribuída nos dias úteis",
+  "IGPM": "Ipeadata (IGP12_IGPMG12), variação mensal distribuída nos dias úteis",
+  "IMAB": "ANBIMA (IMAB)",
+  "IMAB5": "ANBIMA (IMAB5)",
+  "IMAB5MAIS": "ANBIMA (IMAB5MAIS)",
+  "IRFM": "ANBIMA (IRFM)",
+  "IMAS": "ANBIMA (IMAS)",
+  "IMAGERAL": "ANBIMA (IMAGERAL)",
+  "IHFA": "ANBIMA (IHFA)",
+  "SMLL": "B3 (SMLL)",
+  "IDIV": "B3 (IDIV)",
+  "IFIX": "B3 (IFIX)",
+  "USD": "Ipeadata (GM366_ERC366): PTAX venda",
+  "SPXBRL": "Yahoo Finance (^GSPC) × dólar"
+ },
+ "avisos": [],
+ "com_mensal": 6035
+}
