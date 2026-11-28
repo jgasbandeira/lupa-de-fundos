@@ -1,0 +1,33 @@
+{
+ "atualizado": "2026-11-28T18:27:38.908Z",
+ "ultima_cota": "2026-11-27",
+ "fundos": 38107,
+ "com_serie_diaria": 26825,
+ "so_cadastro": 11282,
+ "fundos_ativos": 33917,
+ "inicio": "2000-01-03",
+ "cotas": 47174910,
+ "tamanho_mb": 407,
+ "fontes": {
+  "cdi": "Ipeadata: Selic over diária calibrada pelo CDI mensal",
+  "ibov": "B3 (IBOV)",
+  "IPCA": "Ipeadata (PRECOS12_IPCAG12), variação mensal distribuída nos dias úteis",
+  "IGPM": "Ipeadata (IGP12_IGPMG12), variação mensal distribuída nos dias úteis",
+  "IMAB": "ANBIMA (IMAB)",
+  "IMAB5": "ANBIMA (IMAB5)",
+  "IMAB5MAIS": "ANBIMA (IMAB5MAIS)",
+  "IRFM": "ANBIMA (IRFM)",
+  "IMAS": "ANBIMA (IMAS)",
+  "IMAGERAL": "ANBIMA (IMAGERAL)",
+  "IHFA": "ANBIMA (IHFA)",
+  "SMLL": "B3 (SMLL)",
+  "IDIV": "B3 (IDIV)",
+  "IFIX": "B3 (IFIX)",
+  "USD": "Ipeadata (GM366_ERC366): PTAX venda",
+  "SPXBRL": "Yahoo Finance (^GSPC) × dólar"
+ },
+ "avisos": [
+  "cadastro de instrumentos da B3 indisponível; ETFs identificados pelo nome"
+ ],
+ "com_mensal": 6138
+}
